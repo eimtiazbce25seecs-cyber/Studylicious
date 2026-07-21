@@ -1,0 +1,8 @@
+{
+  "name": "Studylicious",
+  "description": "A production-quality, beautifully aesthetic AI Study Planner app tailored for Matric students(grade 9 and 10) with smart scheduling, camera parsing, an AI Coach, and delightful gamification.make the app colorful cute and appealing not dark thmed",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

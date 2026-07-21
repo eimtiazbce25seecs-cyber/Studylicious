@@ -1,0 +1,48 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Shadow under the book -->
+    <path
+        android:fillColor="#44000000"
+        android:pathData="M30,70 L78,70 C78,70 82,78 78,82 L30,82 C26,78 30,70 30,70 Z" />
+    <!-- Book Cover -->
+    <path
+        android:fillColor="#121019"
+        android:pathData="M24,36 C24,32 28,28 32,28 L76,28 C80,28 84,32 84,36 L84,72 C84,76 80,80 76,80 L32,80 C28,80 24,76 24,72 Z" />
+    <!-- Pages inside Book -->
+    <path
+        android:fillColor="#FAF8F5"
+        android:pathData="M28,34 C28,32 30,30 32,30 L74,30 C76,30 78,32 78,34 L78,74 C78,76 76,78 74,78 L32,78 C30,78 28,76 28,74 Z" />
+    <!-- Heart / Ribbon bookmark -->
+    <path
+        android:fillColor="#FFA8A8"
+        android:pathData="M50,30 L58,30 L58,48 L54,44 L50,48 Z" />
+    <!-- Sparkle / Star 1 -->
+    <path
+        android:fillColor="#FFD32A"
+        android:pathData="M54,12 L56,18 L62,20 L56,22 L54,28 L52,22 L46,20 L52,18 Z" />
+    <!-- Star 2 -->
+    <path
+        android:fillColor="#FFD32A"
+        android:pathData="M34,18 L35,21 L38,22 L35,23 L34,26 L33,23 L30,22 L33,21 Z" />
+    <!-- Star 3 -->
+    <path
+        android:fillColor="#FFD32A"
+        android:pathData="M72,20 L73,23 L76,24 L73,25 L72,28 L71,25 L68,24 L71,23 Z" />
+    <!-- Mascot face outline on page -->
+    <path
+        android:fillColor="#121019"
+        android:pathData="M44,52 C44,50 46,48 48,48 C50,48 52,50 52,52 C52,54 50,56 48,56 C46,56 44,52 44,52 Z" />
+    <path
+        android:fillColor="#121019"
+        android:pathData="M56,52 C56,50 58,48 60,48 C62,48 64,50 64,52 C64,54 62,56 60,56 C58,56 56,52 56,52 Z" />
+    <!-- Smile -->
+    <path
+        android:strokeColor="#121019"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M50,60 C52,63 56,63 58,60" />
+</vector>
