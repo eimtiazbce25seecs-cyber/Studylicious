@@ -8,7 +8,8 @@ data class TodoItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
     val isCompleted: Boolean = false,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val studentName: String = ""
 )
 
 @com.squareup.moshi.JsonClass(generateAdapter = true)
@@ -27,7 +28,8 @@ data class Task(
     val estimatedMinutes: Int,
     val isCompleted: Boolean = false,
     val rescheduledCount: Int = 0,
-    val workloadScore: Int = 3 // 1 to 5 indicating complexity
+    val workloadScore: Int = 3, // 1 to 5 indicating complexity
+    val studentName: String = ""
 )
 
 @Entity(tableName = "streak")
@@ -35,7 +37,8 @@ data class StreakState(
     @PrimaryKey val id: Int = 1,
     val currentStreak: Int = 0,
     val bestStreak: Int = 0,
-    val lastActiveDate: String = "" // "yyyy-MM-dd"
+    val lastActiveDate: String = "", // "yyyy-MM-dd"
+    val studentName: String = ""
 )
 
 @Entity(tableName = "weak_topics")
@@ -45,7 +48,8 @@ data class WeakTopic(
     val topicName: String,
     val confidenceLevel: Int, // 1 to 5 (lower means weaker)
     val mistakeDescription: String,
-    val scheduledRevisionDate: Long? = null
+    val scheduledRevisionDate: Long? = null,
+    val studentName: String = ""
 )
 
 @Entity(tableName = "chat_messages")
@@ -53,7 +57,8 @@ data class ChatMessage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val content: String,
     val sender: String, // "USER" or "COACH"
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val studentName: String = ""
 )
 
 @com.squareup.moshi.JsonClass(generateAdapter = true)
