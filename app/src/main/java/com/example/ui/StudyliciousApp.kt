@@ -200,6 +200,7 @@ fun StudyliciousApp(viewModel: StudyViewModel) {
             ) {
                 val tabs = listOf(
                     Triple("dashboard", "Home", Icons.Rounded.Dashboard),
+                    Triple("focus", "Focus", Icons.Rounded.Timer),
                     Triple("todo", "Tasks", Icons.Rounded.CheckCircle),
                     Triple("scanner", "Scan", Icons.Rounded.QrCodeScanner),
                     Triple("board", "Board Hub", Icons.Rounded.School),
@@ -295,6 +296,10 @@ fun StudyliciousApp(viewModel: StudyViewModel) {
                     "dashboard" -> DashboardScreen(
                         viewModel = viewModel,
                         xpPoints = xpPoints,
+                        onTriggerCompleteAnim = triggerTaskCompleteAnimation
+                    )
+                    "focus" -> FocusScreen(
+                        viewModel = viewModel,
                         pomodoroMinutes = pomodoroMinutes,
                         pomodoroSeconds = pomodoroSeconds,
                         isTimerRunning = isTimerRunning,
@@ -305,9 +310,8 @@ fun StudyliciousApp(viewModel: StudyViewModel) {
                         onToggleTimer = { isTimerRunning = !isTimerRunning },
                         onResetTimer = {
                             isTimerRunning = false
-                            pomodoroMinutes = if (timerMode == "Study") 25 else 5
+                            pomodoroMinutes = initialTimerMinutes
                             pomodoroSeconds = 0
-                            initialTimerMinutes = if (timerMode == "Study") 25 else 5
                         },
                         onSetTimerDuration = { mins, mode ->
                             isTimerRunning = false
@@ -767,6 +771,133 @@ fun StreakMascot(streakCount: Int) {
     }
 }
 
+// --- BOOK MASCOT COMPONENT ---
+@Composable
+fun BookMascot(
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition()
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.95f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = EaseInOutBack),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(72.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+
+            // Book Cover Base (Slightly 3D blocky look)
+            val coverColor = PrimaryLilac
+            val pagesColor = Color.White
+
+            // Spine / Back shadow
+            drawRoundRect(
+                color = coverColor.copy(alpha = 0.3f),
+                topLeft = Offset(w * 0.12f, h * 0.18f),
+                size = Size(w * 0.76f, h * 0.68f),
+                cornerRadius = CornerRadius(12f, 12f)
+            )
+
+            // Main Cover
+            drawRoundRect(
+                color = coverColor,
+                topLeft = Offset(w * 0.15f, h * 0.15f),
+                size = Size(w * 0.7f, h * 0.66f),
+                cornerRadius = CornerRadius(10f, 10f)
+            )
+
+            // Pages block inside
+            drawRoundRect(
+                color = pagesColor,
+                topLeft = Offset(w * 0.22f, h * 0.18f),
+                size = Size(w * 0.58f, h * 0.6f),
+                cornerRadius = CornerRadius(6f, 6f)
+            )
+
+            // Bookmark Ribbon
+            val ribbonPath = Path().apply {
+                moveTo(w * 0.45f, h * 0.75f)
+                lineTo(w * 0.45f, h * 0.88f)
+                lineTo(w * 0.5f, h * 0.83f)
+                lineTo(w * 0.55f, h * 0.88f)
+                lineTo(w * 0.55f, h * 0.75f)
+                close()
+            }
+            drawPath(path = ribbonPath, color = SecondaryPeach)
+
+            // Big friendly eyes (one winking!)
+            val eyeRadius = 4.5f
+            drawCircle(color = MidnightPlum, radius = eyeRadius, center = Offset(w * 0.4f, h * 0.43f))
+            
+            // Winking right eye
+            val winkPath = Path().apply {
+                moveTo(w * 0.56f, h * 0.43f)
+                cubicTo(w * 0.6f, h * 0.40f, w * 0.64f, h * 0.40f, w * 0.68f, h * 0.43f)
+            }
+            drawPath(path = winkPath, color = MidnightPlum, style = Stroke(width = 3.5f, cap = StrokeCap.Round))
+
+            // Rosy Cheek blush
+            drawCircle(color = SecondaryPeach.copy(alpha = 0.8f), radius = 3.5f, center = Offset(w * 0.33f, h * 0.49f))
+            drawCircle(color = SecondaryPeach.copy(alpha = 0.8f), radius = 3.5f, center = Offset(w * 0.67f, h * 0.49f))
+
+            // Happy smile
+            val smilePath = Path().apply {
+                moveTo(w * 0.46f, h * 0.51f)
+                cubicTo(w * 0.49f, h * 0.55f, w * 0.51f, h * 0.55f, w * 0.54f, h * 0.51f)
+            }
+            drawPath(path = smilePath, color = MidnightPlum, style = Stroke(width = 3.5f, cap = StrokeCap.Round))
+
+            // Little cute graduation cap tilted on top left
+            val hatPath = Path().apply {
+                moveTo(w * 0.18f, h * 0.12f)
+                lineTo(w * 0.32f, h * 0.05f)
+                lineTo(w * 0.46f, h * 0.12f)
+                lineTo(w * 0.32f, h * 0.19f)
+                close()
+            }
+            drawPath(path = hatPath, color = MidnightPlum)
+            
+            val hatBase = Path().apply {
+                moveTo(w * 0.26f, h * 0.14f)
+                lineTo(w * 0.38f, h * 0.14f)
+                lineTo(w * 0.35f, h * 0.21f)
+                lineTo(w * 0.29f, h * 0.21f)
+                close()
+            }
+            drawPath(path = hatBase, color = MidnightPlum)
+
+            // Star decoration representing goals
+            val starPath = Path().apply {
+                moveTo(w * 0.5f, h * 0.24f)
+                lineTo(w * 0.52f, h * 0.28f)
+                lineTo(w * 0.56f, h * 0.28f)
+                lineTo(w * 0.53f, h * 0.30f)
+                lineTo(w * 0.54f, h * 0.34f)
+                lineTo(w * 0.5f, h * 0.32f)
+                lineTo(w * 0.46f, h * 0.34f)
+                lineTo(w * 0.47f, h * 0.30f)
+                lineTo(w * 0.44f, h * 0.28f)
+                lineTo(w * 0.48f, h * 0.28f)
+                close()
+            }
+            drawPath(path = starPath, color = SunnyYellow)
+        }
+    }
+}
+
 @Composable
 fun SpeechBubbleArrow(
     color: Color,
@@ -913,16 +1044,6 @@ fun FluidBreathingBanner(isDark: Boolean) {
 fun DashboardScreen(
     viewModel: StudyViewModel,
     xpPoints: Int,
-    pomodoroMinutes: Int,
-    pomodoroSeconds: Int,
-    isTimerRunning: Boolean,
-    timerMode: String,
-    initialTimerMinutes: Int,
-    selectedFocusTask: Task?,
-    onSelectFocusTask: (Task?) -> Unit,
-    onToggleTimer: () -> Unit,
-    onResetTimer: () -> Unit,
-    onSetTimerDuration: (Int, String) -> Unit,
     onTriggerCompleteAnim: (Offset) -> Unit
 ) {
     val tasks by viewModel.allTasks.collectAsState()
@@ -1060,16 +1181,6 @@ fun DashboardScreen(
             }
         }
 
-        // Top Streak Widget at the top of Home Screen
-        item {
-            TopStreakWidget(viewModel = viewModel, isDark = isDark)
-        }
-
-        // Calming Fluid Breathing Animation Banner at the top of Dashboard
-        item {
-            FluidBreathingBanner(isDark = isDark)
-        }
-
         // Interactive Theme Selector Row
         item {
             val currentTheme by viewModel.appTheme.collectAsState()
@@ -1152,306 +1263,16 @@ fun DashboardScreen(
             }
         }
 
-        // Personalized AI Planner Settings Card
+
+
+        // Calming Fluid Breathing Animation Banner at the top of Dashboard
         item {
-            val userMood by viewModel.userMood.collectAsState()
-            val topStudyHours by viewModel.topStudyHours.collectAsState()
-            
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isDark) DarkSurface.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.7f)
-                ),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (isDark) BorderDarkPastel.copy(alpha = 0.15f) else BorderPastel.copy(alpha = 0.3f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(PrimaryLilac.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("⚡", fontSize = 16.sp)
-                        }
-                        Column {
-                            Text(
-                                text = "AI Planner Settings 🤖⚙️",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Adjusts subject schedule flow according to your mood and peak focus times.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = SoftGray
-                            )
-                        }
-                    }
-
-                    Divider(color = if (isDark) BorderDarkPastel.copy(alpha = 0.1f) else BorderPastel.copy(alpha = 0.2f))
-
-                    // Mood selector
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "How are you feeling right now? 🧠",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        
-                        val moods = listOf(
-                            "Energetic" to "⚡",
-                            "Focused" to "🎯",
-                            "Calm" to "🧘",
-                            "Tired" to "😴"
-                        )
-                        
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            moods.forEach { (mName, emoji) ->
-                                val active = userMood == mName
-                                val moodBg = if (active) PrimaryLilac else PrimaryLilac.copy(alpha = 0.06f)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(moodBg)
-                                        .border(
-                                            width = if (active) 1.5.dp else 0.dp,
-                                            color = if (active) SunnyYellow else Color.Transparent,
-                                            shape = RoundedCornerShape(12.dp)
-                                        )
-                                        .clickable { viewModel.setUserMood(mName) }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(text = emoji, fontSize = 16.sp)
-                                        Text(
-                                            text = mName,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (active) Color.White else SoftGray
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Peak focus selector
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "Your Peak Study Hours ⏰📈",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        
-                        val times = listOf(
-                            "Morning (8 AM - 12 PM)" to "🌅",
-                            "Afternoon (12 PM - 4 PM)" to "☀️",
-                            "Evening (4 PM - 8 PM)" to "🌌"
-                        )
-                        
-                        times.forEach { (tName, emoji) ->
-                            val active = topStudyHours == tName
-                            val timeBg = if (active) PrimaryLilac else PrimaryLilac.copy(alpha = 0.05f)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(timeBg)
-                                    .border(
-                                        width = if (active) 1.5.dp else 0.dp,
-                                        color = if (active) SunnyYellow else Color.Transparent,
-                                        shape = RoundedCornerShape(14.dp)
-                                    )
-                                    .clickable { viewModel.setTopStudyHours(tName) }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(text = emoji, fontSize = 14.sp)
-                                    Text(
-                                        text = tName,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (active) Color.White else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            FluidBreathingBanner(isDark = isDark)
         }
 
-        // Upcoming Tests Tracker & In-App Notification Center Widget
+        // Top Streak Widget at the top of Home Screen
         item {
-            val upcomingExams = tasks.filter { !it.isCompleted && (it.taskType == "TEST" || it.taskType == "ASSIGNMENT") && it.dueDate >= System.currentTimeMillis() }.sortedBy { it.dueDate }
-            val context = LocalContext.current
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp)),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (upcomingExams.isNotEmpty()) OrangeRed.copy(alpha = 0.08f) else PrimaryLilac.copy(alpha = 0.06f)
-                ),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, if (upcomingExams.isNotEmpty()) OrangeRed.copy(alpha = 0.4f) else PrimaryLilac.copy(alpha = 0.2f))
-            ) {
-                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(if (upcomingExams.isNotEmpty()) OrangeRed.copy(alpha = 0.15f) else PrimaryLilac.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CalendarMonth,
-                                contentDescription = "Alerts",
-                                tint = if (upcomingExams.isNotEmpty()) OrangeRed else PrimaryLilac,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        
-                        Column {
-                            Text(
-                                text = "Exam & Paper Reminder Widget 🚨",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Keeps you in check of upcoming Matric finals, midterms & tests.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = SoftGray
-                            )
-                        }
-                    }
-
-                    if (upcomingExams.isEmpty()) {
-                        Text(
-                            text = "No upcoming tests or assignments scheduled for the next 30 days. You are fully caught up! 🕊️✨",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = SoftGray,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            upcomingExams.take(3).forEach { exam ->
-                                val diff = exam.dueDate - System.currentTimeMillis()
-                                val daysLeft = (diff / 86400000L).toInt().coerceAtLeast(0)
-                                val labelText = if (daysLeft == 0) "TODAY! 🚨" else if (daysLeft == 1) "TOMORROW! ⏳" else "In $daysLeft days"
-
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(if (daysLeft <= 3) OrangeRed.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.3f))
-                                        .padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                        Text("🧬", modifier = Modifier.padding(end = 6.dp))
-                                        Column {
-                                            Text(exam.title, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                                            Text(exam.subject, style = MaterialTheme.typography.labelSmall, color = SoftGray)
-                                        }
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (daysLeft <= 3) OrangeRed else PrimaryLilac)
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(labelText, style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Button(
-                        onClick = {
-                            if (upcomingExams.isNotEmpty()) {
-                                val nearest = upcomingExams.first()
-                                val diff = nearest.dueDate - System.currentTimeMillis()
-                                val daysLeft = (diff / 86400000L).toInt().coerceAtLeast(0)
-                                val dayText = if (daysLeft == 0) "today!" else if (daysLeft == 1) "tomorrow!" else "in $daysLeft days!"
-                                Toast.makeText(context, "🔔 Studyly Alert: Don't forget to prepare for your ${nearest.subject} ${nearest.taskType.lowercase()} coming up $dayText! 🧠📖", Toast.LENGTH_LONG).show()
-                            } else {
-                                Toast.makeText(context, "🔔 Studyly Notification: You have no upcoming tests scheduled. Keep up the good work! 🌟", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Trigger Notification Alert 🚀", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Recent Notification Logs center
-                    Text(
-                        text = "Recent Notifications Center 🔔",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf(
-                            "🔔 [Today] Remember to study limits for Mathematics calculus test coming up in 30 days!" to true,
-                            "🔔 [Today] Goal Master: Study goal set to 12 hours. Study consistently to earn bonus XP!" to false,
-                            "🔔 [Yesterday] Quote of the day: Tap on the quote card to view brand new unique motivation!" to false
-                        ).forEach { (logText, isNew) ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isNew) PrimaryLilac.copy(alpha = 0.05f) else Color.Transparent)
-                                    .padding(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = logText,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isNew) PrimaryLilac else SoftGray,
-                                    fontWeight = if (isNew) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            TopStreakWidget(viewModel = viewModel, isDark = isDark)
         }
 
         // Streak & Daily Study Goal Progress Card
@@ -1488,9 +1309,9 @@ fun DashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                StreakMascot(streakCount = streak)
+                                BookMascot()
                                 Text(
-                                    text = "$streak Day Streak! 🔥",
+                                    text = "Daily Goal Master! 🏆",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = PrimaryLilac
@@ -1940,6 +1761,157 @@ fun DashboardScreen(
             }
         }
 
+        // Upcoming Tests Tracker & In-App Notification Center Widget
+        item {
+            val upcomingExams = tasks.filter { !it.isCompleted && (it.taskType == "TEST" || it.taskType == "ASSIGNMENT") && it.dueDate >= System.currentTimeMillis() }.sortedBy { it.dueDate }
+            val context = LocalContext.current
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp)),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (upcomingExams.isNotEmpty()) OrangeRed.copy(alpha = 0.08f) else PrimaryLilac.copy(alpha = 0.06f)
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, if (upcomingExams.isNotEmpty()) OrangeRed.copy(alpha = 0.4f) else PrimaryLilac.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(if (upcomingExams.isNotEmpty()) OrangeRed.copy(alpha = 0.15f) else PrimaryLilac.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.CalendarMonth,
+                                contentDescription = "Alerts",
+                                tint = if (upcomingExams.isNotEmpty()) OrangeRed else PrimaryLilac,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        
+                        Column {
+                            Text(
+                                text = "Exam & Paper Reminder Widget 🚨",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Keeps you in check of upcoming Matric finals, midterms & tests.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = SoftGray
+                            )
+                        }
+                    }
+
+                    if (upcomingExams.isEmpty()) {
+                        Text(
+                            text = "No upcoming tests or assignments scheduled for the next 30 days. You are fully caught up! 🕊️✨",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SoftGray,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            upcomingExams.take(3).forEach { exam ->
+                                val diff = exam.dueDate - System.currentTimeMillis()
+                                val daysLeft = (diff / 86400000L).toInt().coerceAtLeast(0)
+                                val labelText = if (daysLeft == 0) "TODAY! 🚨" else if (daysLeft == 1) "TOMORROW! ⏳" else "In $daysLeft days"
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (daysLeft <= 3) OrangeRed.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.3f))
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Text("🧬", modifier = Modifier.padding(end = 6.dp))
+                                        Column {
+                                            Text(exam.title, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                                            Text(exam.subject, style = MaterialTheme.typography.labelSmall, color = SoftGray)
+                                        }
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (daysLeft <= 3) OrangeRed else PrimaryLilac)
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(labelText, style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Button(
+                        onClick = {
+                            if (upcomingExams.isNotEmpty()) {
+                                val nearest = upcomingExams.first()
+                                val diff = nearest.dueDate - System.currentTimeMillis()
+                                val daysLeft = (diff / 86400000L).toInt().coerceAtLeast(0)
+                                val dayText = if (daysLeft == 0) "today!" else if (daysLeft == 1) "tomorrow!" else "in $daysLeft days!"
+                                Toast.makeText(context, "🔔 Studyly Alert: Don't forget to prepare for your ${nearest.subject} ${nearest.taskType.lowercase()} coming up $dayText! 🧠📖", Toast.LENGTH_LONG).show()
+                            } else {
+                                Toast.makeText(context, "🔔 Studyly Notification: You have no upcoming tests scheduled. Keep up the good work! 🌟", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Trigger Notification Alert 🚀", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Recent Notification Logs center
+                    Text(
+                        text = "Recent Notifications Center 🔔",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(
+                            "🔔 [Today] Remember to study limits for Mathematics calculus test coming up in 30 days!" to true,
+                            "🔔 [Today] Goal Master: Study goal set to 12 hours. Study consistently to earn bonus XP!" to false,
+                            "🔔 [Yesterday] Quote of the day: Tap on the quote card to view brand new unique motivation!" to false
+                        ).forEach { (logText, isNew) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isNew) PrimaryLilac.copy(alpha = 0.05f) else Color.Transparent)
+                                    .padding(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = logText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isNew) PrimaryLilac else SoftGray,
+                                    fontWeight = if (isNew) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Weekly Progress Graph (What got done)
         item {
             val focusSessions by viewModel.focusSessions.collectAsState()
@@ -2343,603 +2315,8 @@ fun DashboardScreen(
             }
         }
 
-        // AI Daily Recommendation Quote (Cute Speech Bubble)
-        item {
-            val appTheme by viewModel.appTheme.collectAsState()
-            val themePrimary = when(appTheme) {
-                "Sunset Glow" -> Color(0xFFFF5252)
-                "Cotton Candy" -> Color(0xFF0288D1)
-                "Minty Fresh" -> Color(0xFF00796B)
-                "Cosmic Candy" -> Color(0xFFE040FB)
-                else -> PrimaryLilac
-            }
-            val themeSecondary = when(appTheme) {
-                "Sunset Glow" -> Color(0xFFFFAB40)
-                "Cotton Candy" -> Color(0xFFFF4081)
-                "Minty Fresh" -> Color(0xFF4DB6AC)
-                "Cosmic Candy" -> Color(0xFF00E5FF)
-                else -> SecondaryPeach
-            }
 
-            val bubbleBg = if (isDark) {
-                DarkSurface.copy(alpha = 0.8f)
-            } else {
-                LightSurface.copy(alpha = 0.85f)
-            }
 
-            val bubbleBorderBrush = if (isDark) {
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.15f),
-                        themeSecondary.copy(alpha = 0.25f)
-                    )
-                )
-            } else {
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.85f),
-                        themeSecondary.copy(alpha = 0.45f)
-                    )
-                )
-            }
-
-            // Bounce animation for the mascot
-            val infiniteTransition = rememberInfiniteTransition(label = "mascot_bounce")
-            val bounceOffset by infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = -6f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1200, easing = EaseInOutSine),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "bounceOffset"
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Cute interactive mascot
-                Box(
-                    modifier = Modifier
-                        .offset(y = bounceOffset.dp)
-                        .size(60.dp)
-                        .clip(CircleShape)
-                        .background(themePrimary.copy(alpha = 0.15f))
-                        .border(1.5.dp, themePrimary.copy(alpha = 0.4f), CircleShape)
-                        .clickable { viewModel.fetchNewQuote() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (quoteLoading) "🤔" else "🦉",
-                        fontSize = 30.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                // Speech Bubble Arrow
-                SpeechBubbleArrow(
-                    color = bubbleBg,
-                    modifier = Modifier.offset(x = 1.dp)
-                )
-
-                // Speech Bubble body
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .shadow(4.dp, RoundedCornerShape(topStart = 4.dp, topEnd = 24.dp, bottomStart = 24.dp, bottomEnd = 24.dp))
-                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 24.dp, bottomStart = 24.dp, bottomEnd = 24.dp))
-                        .background(bubbleBg)
-                        .border(1.dp, bubbleBorderBrush, RoundedCornerShape(topStart = 4.dp, topEnd = 24.dp, bottomStart = 24.dp, bottomEnd = 24.dp))
-                        .clickable { viewModel.fetchNewQuote() }
-                        .padding(16.dp)
-                ) {
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "Studyly the Owl 🦉",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = themePrimary
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(themePrimary.copy(alpha = 0.12f))
-                                        .padding(horizontal = 4.dp, vertical = 1.dp)
-                                ) {
-                                    Text(
-                                        text = "AI Tip",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = themePrimary,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                            
-                            Icon(
-                                imageVector = Icons.Rounded.Refresh,
-                                contentDescription = "Refresh Tip",
-                                tint = SoftGray,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.height(6.dp))
-                        
-                        Text(
-                            text = if (quoteLoading) "Thinking of a matric secret... ⚡✨" else "\"$quote\"",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                }
-            }
-        }
-
-        // Pomodoro Timer Card
-        item {
-            GlassCard(modifier = Modifier.fillMaxWidth(), isDark = isDark) {
-                var dropdownExpanded by remember { mutableStateOf(false) }
-                val incompleteTasks = tasks.filter { !it.isCompleted }
-                val focusSessions by viewModel.focusSessions.collectAsState()
-                var showHistory by remember { mutableStateOf(false) }
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Focus Timer ($timerMode) ⏱️",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryLilac
-                            )
-                            Text(
-                                text = "Practice focus block and earn XP",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = SoftGray
-                            )
-                        }
-                    }
-
-                    // Preset duration chips
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val presets = listOf(
-                            Triple(25, "Study", "✍️ 25m"),
-                            Triple(50, "Study", "🧠 50m"),
-                            Triple(5, "Break", "☕ 5m"),
-                            Triple(15, "Break", "🍵 15m")
-                        )
-                        presets.forEach { (mins, mode, label) ->
-                            val isSelected = (pomodoroMinutes == mins && timerMode == mode)
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isSelected) PrimaryLilac.copy(alpha = 0.2f) else Color.Transparent)
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) PrimaryLilac else BorderPastel,
-                                        RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable { onSetTimerDuration(mins, mode) }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) PrimaryLilac else SoftGray
-                                )
-                            }
-                        }
-                    }
-
-                    // Custom set focus timer controller
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isDark) Color.White.copy(alpha = 0.04f) else PrimaryLilac.copy(alpha = 0.04f))
-                            .border(1.dp, BorderPastel.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "Custom Time:",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            
-                            IconButton(
-                                onClick = { 
-                                    val newMins = if (pomodoroMinutes > 5) pomodoroMinutes - 5 else 1
-                                    onSetTimerDuration(newMins, timerMode)
-                                },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(PrimaryLilac.copy(alpha = 0.15f))
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Remove,
-                                    contentDescription = "Decrease Custom Minutes",
-                                    tint = PrimaryLilac,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            
-                            Text(
-                                text = "$pomodoroMinutes mins",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Black,
-                                color = PrimaryLilac
-                            )
-                            
-                            IconButton(
-                                onClick = { 
-                                    val newMins = if (pomodoroMinutes < 180) pomodoroMinutes + 5 else 180
-                                    onSetTimerDuration(newMins, timerMode)
-                                },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(PrimaryLilac.copy(alpha = 0.15f))
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Add,
-                                    contentDescription = "Increase Custom Minutes",
-                                    tint = PrimaryLilac,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                        
-                        // Text button to switch between Study and Break mode
-                        TextButton(
-                            onClick = {
-                                val nextMode = if (timerMode == "Study") "Break" else "Study"
-                                onSetTimerDuration(pomodoroMinutes, nextMode)
-                            },
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = PrimaryLilac
-                            )
-                        ) {
-                            Text(
-                                text = if (timerMode == "Study") "Mode: Study ✍️" else "Mode: Break ☕",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-
-                    // Focus target task selection
-                    if (timerMode == "Study") {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "Focus Target Task 🎯",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryLilac
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isDark) Color.White.copy(alpha = 0.05f) else PrimaryLilac.copy(alpha = 0.08f))
-                                    .border(1.dp, BorderPastel, RoundedCornerShape(12.dp))
-                                    .clickable { dropdownExpanded = true }
-                                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = selectedFocusTask?.title ?: "General Focus Session (No Specific Task) 🧠",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (selectedFocusTask != null) MaterialTheme.colorScheme.onSurface else SoftGray,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Icon(
-                                        imageVector = Icons.Rounded.ArrowDropDown,
-                                        contentDescription = "Select Task",
-                                        tint = SoftGray
-                                    )
-                                }
-
-                                DropdownMenu(
-                                    expanded = dropdownExpanded,
-                                    onDismissRequest = { dropdownExpanded = false },
-                                    modifier = Modifier
-                                        .fillMaxWidth(0.8f)
-                                        .background(if (isDark) DarkSurface else Color.White)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("General Focus Session 🧠") },
-                                        onClick = {
-                                            onSelectFocusTask(null)
-                                            dropdownExpanded = false
-                                        }
-                                    )
-                                    incompleteTasks.forEach { task ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Column {
-                                                    Text(task.title, fontWeight = FontWeight.SemiBold)
-                                                    Text("${task.subject} • Chapter ${task.chapter}", style = MaterialTheme.typography.labelSmall, color = SoftGray)
-                                                }
-                                            },
-                                            onClick = {
-                                                onSelectFocusTask(task)
-                                                dropdownExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Progress circular ring and timer display + controls
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val totalSecondsPreset = initialTimerMinutes * 60
-                        val currentRemaining = pomodoroMinutes * 60 + pomodoroSeconds
-                        val progress = if (totalSecondsPreset > 0) currentRemaining.toFloat() / totalSecondsPreset else 1.0f
-
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.size(100.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                progress = { progress },
-                                modifier = Modifier.fillMaxSize(),
-                                color = if (timerMode == "Study") PrimaryLilac else SecondaryPeach,
-                                strokeWidth = 8.dp,
-                                trackColor = if (isDark) Color.White.copy(alpha = 0.08f) else PrimaryLilac.copy(alpha = 0.12f)
-                            )
-                            
-                            val secStr = if (pomodoroSeconds < 10) "0$pomodoroSeconds" else "$pomodoroSeconds"
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "$pomodoroMinutes:$secStr",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = if (isTimerRunning) "Active" else "Paused",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isTimerRunning) MintGreen else OrangeRed,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        // Info text & controls
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (selectedFocusTask != null && timerMode == "Study") {
-                                Text(
-                                    text = "🎯 Focus Target: +100 XP bonus!",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = SecondaryPeach,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            } else if (timerMode == "Study") {
-                                Text(
-                                    text = "🧠 General Focus: +50 XP",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = SoftGray
-                                )
-                            } else {
-                                Text(
-                                    text = "☕ Great job! Rest up.",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MintGreen,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Button(
-                                    onClick = onToggleTimer,
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isTimerRunning) OrangeRed else MintGreen
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text(if (isTimerRunning) "Pause" else "Start", fontWeight = FontWeight.Bold)
-                                }
-
-                                OutlinedButton(
-                                    onClick = onResetTimer,
-                                    modifier = Modifier.weight(1f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderPastel),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Reset", color = MaterialTheme.colorScheme.onSurface)
-                                }
-                            }
-                        }
-                    }
-
-                    // Focus Session History log
-                    if (focusSessions.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showHistory = !showHistory }
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Focus History (${focusSessions.size}) 📜",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = SoftGray
-                            )
-                            Icon(
-                                imageVector = if (showHistory) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                                contentDescription = "Toggle History",
-                                tint = SoftGray,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-
-                        if (showHistory) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                focusSessions.take(5).forEach { session ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isDark) Color.White.copy(alpha = 0.03f) else PrimaryLilac.copy(alpha = 0.05f))
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = session.taskTitle,
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = "${session.durationMinutes}m • at ${session.dateString}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = SoftGray
-                                            )
-                                        }
-                                        Text(
-                                            text = "+${session.xpEarned} XP",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = SunnyYellow
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Today's Study Tasks Section Header
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Today's Study Schedule 📚",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-
-                Text(
-                    text = "$completedCount/$totalCount Done",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = PrimaryLilac,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        // Study Tasks list
-        if (tasks.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
-                            contentDescription = "All clear",
-                            tint = MintGreen,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "All clear! Time to chill or prep ahead. 🛋️",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = SoftGray
-                        )
-                    }
-                }
-            }
-        } else {
-            items(tasks) { task ->
-                TaskRowItem(
-                    task = task,
-                    isDark = isDark,
-                    onToggleComplete = { offset ->
-                        viewModel.toggleTaskCompletion(task)
-                        if (!task.isCompleted) {
-                            onTriggerCompleteAnim(offset)
-                        }
-                    },
-                    onDelete = { viewModel.deleteTask(task.id) }
-                )
-            }
-        }
     }
 }
 
@@ -4743,7 +4120,7 @@ fun CalendarScreen(viewModel: StudyViewModel) {
                             dueDate = cal.timeInMillis,
                             estimatedMinutes = estimatedMinutes.toIntOrNull() ?: 45
                         )
-                        viewModel.updateTask(newTask)
+                        viewModel.insertTask(newTask)
                         addingTaskHour = null
                         Toast.makeText(context, "Study slot added to calendar! ⏰✨", Toast.LENGTH_SHORT).show()
                     }

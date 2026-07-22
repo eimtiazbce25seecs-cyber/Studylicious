@@ -819,6 +819,12 @@ class StudyViewModel(
     private val _isAnalyzingTodo = MutableStateFlow(false)
     val isAnalyzingTodo: StateFlow<Boolean> = _isAnalyzingTodo.asStateFlow()
 
+    fun insertTask(task: Task) {
+        viewModelScope.launch {
+            repository.insertTask(task)
+        }
+    }
+
     fun updateTask(task: Task) {
         viewModelScope.launch {
             repository.updateTask(task)
