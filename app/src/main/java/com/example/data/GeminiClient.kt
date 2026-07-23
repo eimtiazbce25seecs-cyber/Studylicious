@@ -1,5 +1,7 @@
 package com.example.data
 
+import android.graphics.Bitmap
+import android.util.Base64
 import com.example.BuildConfig
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -12,6 +14,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
 @JsonClass(generateAdapter = true)
@@ -55,7 +58,7 @@ data class GeminiCandidate(
 )
 
 interface GeminiApiService {
-    @POST("v1beta/models/gemini-1.5-flash:generateContent")
+    @POST("v1beta/models/gemini-3.5-flash:generateContent")
     suspend fun generateContent(
         @Query("key") apiKey: String,
         @Body request: GeminiRequest
@@ -108,5 +111,33 @@ object GeminiClient {
         val response = service.generateContent(apiKey, request)
         return response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             ?: throw IllegalStateException("Received an empty response from Gemini.")
+    }
+
+    suspend fun analyzeImage(bitmap: Bitmap, prompt: String, systemInstruction: String? = null): String {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+            throw IllegalStateException("Gemini API key is not configured in the Secrets panel.")
+        }
+
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+        val imageBytes = outputStream.toByteArray()
+        val base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+
+        val parts = listOf(
+            GeminiPart(inlineData = GeminiInlineData(mimeType = "image/jpeg", data = base64Image)),
+            GeminiPart(text = prompt)
+        )
+        val content = GeminiContent(parts)
+        val instruction = systemInstruction?.let { GeminiContent(listOf(GeminiPart(text = it))) }
+
+        val request = GeminiRequest(
+            contents = listOf(content),
+            systemInstruction = instruction
+        )
+
+        val response = service.generateContent(apiKey, request)
+        return response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+            ?: throw IllegalStateException("Received an empty response from Gemini Vision.")
     }
 }

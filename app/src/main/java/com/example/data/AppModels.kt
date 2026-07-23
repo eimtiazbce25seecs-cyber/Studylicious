@@ -71,3 +71,13 @@ data class FocusSession(
     val dateString: String
 )
 
+@com.squareup.moshi.JsonClass(generateAdapter = true)
+data class TimelineSubTask(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val hour: Int,
+    val title: String,
+    val isCompleted: Boolean = false,
+    val minuteRange: String? = null
+)
+
+

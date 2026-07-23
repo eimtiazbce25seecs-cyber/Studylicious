@@ -1,7 +1,10 @@
 package com.example.ui
 
+import android.content.Intent
 import android.widget.Toast
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -27,8 +30,10 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -152,8 +157,9 @@ fun StudyliciousApp(viewModel: StudyViewModel) {
                 isTimerRunning = false
                 if (timerMode == "Study") {
                     val taskName = selectedFocusTask?.title ?: "General Focus Session"
-                    val xpAwarded = if (selectedFocusTask != null) 100 else 50
-                    viewModel.logFocusSession(taskName, if (initialTimerMinutes > 0) initialTimerMinutes else 25, xpAwarded)
+                    val durationMins = if (initialTimerMinutes > 0) initialTimerMinutes else 25
+                    val xpAwarded = durationMins // 1:1 Minute Ratio (e.g., 35m -> +35 XP)
+                    viewModel.logFocusSession(taskName, durationMins, xpAwarded)
                     
                     lastCompletedTaskName = taskName
                     lastEarnedXp = xpAwarded
@@ -200,9 +206,9 @@ fun StudyliciousApp(viewModel: StudyViewModel) {
             ) {
                 val tabs = listOf(
                     Triple("dashboard", "Home", Icons.Rounded.Dashboard),
-                    Triple("focus", "Focus", Icons.Rounded.Timer),
-                    Triple("todo", "Tasks", Icons.Rounded.CheckCircle),
                     Triple("scanner", "Scan", Icons.Rounded.QrCodeScanner),
+                    Triple("todo", "Tasks", Icons.Rounded.CheckCircle),
+                    Triple("focus", "Focus", Icons.Rounded.Timer),
                     Triple("board", "Board Hub", Icons.Rounded.School),
                     Triple("calendar", "Plan", Icons.Rounded.CalendarMonth),
                     Triple("mistakes", "Review", Icons.Rounded.FactCheck),
@@ -472,6 +478,129 @@ fun GlassCard(
             .padding(18.dp),
         content = content
     )
+}
+
+// --- STUDY XP GAMIFICATION CARD ---
+@Composable
+fun StudyXpGamificationCard(
+    xpPoints: Int,
+    isDark: Boolean
+) {
+    val level = (xpPoints / 200) + 1
+    val currentLevelXp = xpPoints % 200
+    val targetLevelXp = 200
+    val progressFraction = (currentLevelXp.toFloat() / targetLevelXp).coerceIn(0f, 1f)
+
+    val rankTitle = when (level) {
+        1 -> "Novice Scholar 🌱"
+        2 -> "Focused Learner ⚡"
+        3 -> "Knowledge Seeker 🎓"
+        4 -> "Master Strategist 🔮"
+        else -> "Legendary Academic 👑"
+    }
+
+    GlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("study_xp_card"),
+        isDark = isDark
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(SunnyYellow.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "⚡", fontSize = 22.sp)
+                    }
+                    Column {
+                        Text(
+                            text = "Level $level: $rankTitle",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Earn XP by completing planned tasks & focus sessions!",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = SoftGray
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(PrimaryLilac.copy(alpha = 0.15f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "$xpPoints Total XP",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryLilac
+                    )
+                }
+            }
+
+            // Progress Bar
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Level Progress",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SoftGray
+                    )
+                    Text(
+                        text = "$currentLevelXp / $targetLevelXp XP to Level ${level + 1}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryLilac
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(
+                            if (isDark) Color.White.copy(alpha = 0.1f) else PrimaryLilac.copy(alpha = 0.12f)
+                        )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progressFraction)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    colors = listOf(PrimaryLilac, SunnyYellow)
+                                )
+                            )
+                    )
+                }
+            }
+        }
+    }
 }
 
 // --- TOP PROMINENT STREAK WIDGET ---
@@ -1052,6 +1181,10 @@ fun DashboardScreen(
     val quoteLoading by viewModel.quoteLoading.collectAsState()
     val currentTheme by viewModel.appTheme.collectAsState()
     val isDark = currentTheme == "Cosmic Candy"
+    val matricExamDays by viewModel.matricExamDays.collectAsState()
+
+    var showEditDaysDialog by remember { mutableStateOf(false) }
+    var daysInputText by remember { mutableStateOf("") }
 
     val completedCount = tasks.count { it.isCompleted }
     val totalCount = tasks.size
@@ -1141,24 +1274,14 @@ fun DashboardScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .background(PrimaryLilac.copy(alpha = 0.15f))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .testTag("top_header_xp_display")
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Star,
-                                contentDescription = "XP",
-                                tint = SunnyYellow,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Text(
-                                text = "$xpPoints XP",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryLilac
-                            )
-                        }
+                        Text(
+                            text = "⭐ $xpPoints XP",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryLilac
+                        )
                     }
 
                     // Logout Icon Button (Super cute and useful!)
@@ -1676,38 +1799,44 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Days Left Card
-                val daysLeft = remember {
-                    val examCal = Calendar.getInstance().apply {
-                        set(Calendar.YEAR, 2026)
-                        set(Calendar.MONTH, Calendar.OCTOBER)
-                        set(Calendar.DAY_OF_MONTH, 26)
-                        set(Calendar.HOUR_OF_DAY, 9)
-                        set(Calendar.MINUTE, 0)
-                    }
-                    val diff = examCal.timeInMillis - System.currentTimeMillis()
-                    if (diff > 0) (diff / (1000 * 60 * 60 * 24)).toInt() else 0
-                }
-
                 GlassCard(
                     modifier = Modifier
                         .weight(1f)
-                        .height(130.dp),
+                        .height(130.dp)
+                        .clickable {
+                            daysInputText = matricExamDays.toString()
+                            showEditDaysDialog = true
+                        },
                     isDark = isDark
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.Start
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Event,
-                            contentDescription = "Days Left",
-                            tint = themeSecondary,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Event,
+                                contentDescription = "Days Left",
+                                tint = themeSecondary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = "Edit Days Left",
+                                tint = themeSecondary.copy(alpha = 0.8f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "$daysLeft Days",
+                            text = "$matricExamDays Days",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Black,
                             color = themeSecondary
@@ -1722,9 +1851,7 @@ fun DashboardScreen(
                 }
 
                 // Hours Studied Card
-                val allTimeStudyHours = remember(focusSessions) {
-                    focusSessions.sumOf { it.durationMinutes } / 60f
-                }
+                val hoursStudied by viewModel.hoursStudied.collectAsState()
 
                 GlassCard(
                     modifier = Modifier
@@ -1745,7 +1872,7 @@ fun DashboardScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "%.1f Hrs".format(allTimeStudyHours),
+                            text = "%.1f Hrs".format(hoursStudied),
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Black,
                             color = themePrimary
@@ -1764,7 +1891,145 @@ fun DashboardScreen(
         // Upcoming Tests Tracker & In-App Notification Center Widget
         item {
             val upcomingExams = tasks.filter { !it.isCompleted && (it.taskType == "TEST" || it.taskType == "ASSIGNMENT") && it.dueDate >= System.currentTimeMillis() }.sortedBy { it.dueDate }
+            val notificationLogs by viewModel.notificationLogs.collectAsState()
             val context = LocalContext.current
+
+            var showExamDialog by remember { mutableStateOf(false) }
+            var editingExam by remember { mutableStateOf<Task?>(null) }
+            var examTitleInput by remember { mutableStateOf("") }
+            var examSubjectInput by remember { mutableStateOf("") }
+            var examDaysLeftInput by remember { mutableStateOf("7") }
+            var examWeightageInput by remember { mutableStateOf("High (5)") }
+
+            if (showExamDialog) {
+                AlertDialog(
+                    onDismissRequest = { showExamDialog = false },
+                    title = {
+                        Text(
+                            text = if (editingExam == null) "Add Exam & Paper Reminder 🚨" else "Edit Exam & Paper Reminder 📝",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedTextField(
+                                value = examTitleInput,
+                                onValueChange = { examTitleInput = it },
+                                label = { Text("Exam / Paper Title") },
+                                placeholder = { Text("e.g., Calculus Midterm") },
+                                modifier = Modifier.fillMaxWidth().testTag("exam_title_input"),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = examSubjectInput,
+                                onValueChange = { examSubjectInput = it },
+                                label = { Text("Subject") },
+                                placeholder = { Text("e.g., Mathematics") },
+                                modifier = Modifier.fillMaxWidth().testTag("exam_subject_input"),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = examDaysLeftInput,
+                                onValueChange = { examDaysLeftInput = it.filter { char -> char.isDigit() } },
+                                label = { Text("Days Until Exam / Paper") },
+                                placeholder = { Text("e.g., 7") },
+                                modifier = Modifier.fillMaxWidth().testTag("exam_days_input"),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                listOf("1", "3", "7", "14", "30").forEach { d ->
+                                    FilterChip(
+                                        selected = examDaysLeftInput == d,
+                                        onClick = { examDaysLeftInput = d },
+                                        label = { Text("${d}d") }
+                                    )
+                                }
+                            }
+
+                            Text("Exam Weightage / Task Load:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                listOf("High (5)", "Medium (3)", "Low (1)").forEach { weight ->
+                                    FilterChip(
+                                        selected = examWeightageInput == weight,
+                                        onClick = { examWeightageInput = weight },
+                                        label = { Text(weight) }
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val title = examTitleInput.ifBlank { "Calculus Midterm" }
+                                val subject = examSubjectInput.ifBlank { "Mathematics" }
+                                val days = examDaysLeftInput.toIntOrNull()?.coerceAtLeast(1) ?: 7
+                                val workload = when {
+                                    examWeightageInput.contains("High") -> 5
+                                    examWeightageInput.contains("Medium") -> 3
+                                    else -> 1
+                                }
+                                val cal = java.util.Calendar.getInstance()
+                                cal.add(java.util.Calendar.DATE, days)
+                                cal.set(java.util.Calendar.HOUR_OF_DAY, 9)
+                                cal.set(java.util.Calendar.MINUTE, 0)
+                                val targetDueDate = cal.timeInMillis
+
+                                val currentExam = editingExam
+                                if (currentExam != null) {
+                                    val updated = currentExam.copy(
+                                        title = title,
+                                        subject = subject,
+                                        dueDate = targetDueDate,
+                                        workloadScore = workload
+                                    )
+                                    viewModel.updateTask(updated)
+                                    viewModel.addNotificationLog("🔔 [Just Now] Exam Reminder updated: $title ($subject) in $days days!")
+                                    Toast.makeText(context, "Exam Reminder Updated & Synced with Calendar! 🚨✨", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val newTask = Task(
+                                        title = title,
+                                        subject = subject,
+                                        chapter = "Exam Prep",
+                                        taskType = "TEST",
+                                        dueDate = targetDueDate,
+                                        estimatedMinutes = 60,
+                                        workloadScore = workload,
+                                        studentName = viewModel.userName.value
+                                    )
+                                    viewModel.insertTask(newTask)
+                                    viewModel.addNotificationLog("🔔 [Just Now] New Exam Scheduled: $title ($subject) in $days days!")
+                                    Toast.makeText(context, "New Exam Scheduled & Synced across Calendar views! 🚨✨", Toast.LENGTH_SHORT).show()
+                                }
+
+                                showExamDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
+                            modifier = Modifier.testTag("save_exam_button")
+                        ) {
+                            Text("Save Exam Reminder", fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showExamDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
 
             Card(
                 modifier = Modifier
@@ -1777,35 +2042,61 @@ fun DashboardScreen(
             ) {
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(if (upcomingExams.isNotEmpty()) OrangeRed.copy(alpha = 0.15f) else PrimaryLilac.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (upcomingExams.isNotEmpty()) OrangeRed.copy(alpha = 0.15f) else PrimaryLilac.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CalendarMonth,
+                                    contentDescription = "Alerts",
+                                    tint = if (upcomingExams.isNotEmpty()) OrangeRed else PrimaryLilac,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            
+                            Column {
+                                Text(
+                                    text = "Exam & Paper Reminder Widget 🚨",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Keeps you in check of upcoming Matric finals, midterms & tests.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = SoftGray
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = {
+                                editingExam = null
+                                examTitleInput = ""
+                                examSubjectInput = ""
+                                examDaysLeftInput = "7"
+                                examWeightageInput = "High (5)"
+                                showExamDialog = true
+                            },
+                            modifier = Modifier.testTag("add_exam_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.CalendarMonth,
-                                contentDescription = "Alerts",
-                                tint = if (upcomingExams.isNotEmpty()) OrangeRed else PrimaryLilac,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        
-                        Column {
-                            Text(
-                                text = "Exam & Paper Reminder Widget 🚨",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Keeps you in check of upcoming Matric finals, midterms & tests.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = SoftGray
+                                imageVector = Icons.Rounded.AddCircle,
+                                contentDescription = "Add Exam",
+                                tint = PrimaryLilac,
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }
@@ -1819,7 +2110,7 @@ fun DashboardScreen(
                         )
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            upcomingExams.take(3).forEach { exam ->
+                            upcomingExams.take(4).forEach { exam ->
                                 val diff = exam.dueDate - System.currentTimeMillis()
                                 val daysLeft = (diff / 86400000L).toInt().coerceAtLeast(0)
                                 val labelText = if (daysLeft == 0) "TODAY! 🚨" else if (daysLeft == 1) "TOMORROW! ⏳" else "In $daysLeft days"
@@ -1837,16 +2128,45 @@ fun DashboardScreen(
                                         Text("🧬", modifier = Modifier.padding(end = 6.dp))
                                         Column {
                                             Text(exam.title, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                                            Text(exam.subject, style = MaterialTheme.typography.labelSmall, color = SoftGray)
+                                            Text("${exam.subject} • Load ${exam.workloadScore}/5", style = MaterialTheme.typography.labelSmall, color = SoftGray)
                                         }
                                     }
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (daysLeft <= 3) OrangeRed else PrimaryLilac)
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Text(labelText, style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (daysLeft <= 3) OrangeRed else PrimaryLilac)
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(labelText, style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                editingExam = exam
+                                                examTitleInput = exam.title
+                                                examSubjectInput = exam.subject
+                                                val dl = (diff / 86400000L).toInt().coerceAtLeast(1)
+                                                examDaysLeftInput = dl.toString()
+                                                examWeightageInput = when (exam.workloadScore) {
+                                                    5 -> "High (5)"
+                                                    3 -> "Medium (3)"
+                                                    else -> "Low (1)"
+                                                }
+                                                showExamDialog = true
+                                            },
+                                            modifier = Modifier.size(28.dp).testTag("edit_exam_${exam.id}")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Edit,
+                                                contentDescription = "Edit Exam",
+                                                tint = PrimaryLilac,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1886,11 +2206,7 @@ fun DashboardScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf(
-                            "🔔 [Today] Remember to study limits for Mathematics calculus test coming up in 30 days!" to true,
-                            "🔔 [Today] Goal Master: Study goal set to 12 hours. Study consistently to earn bonus XP!" to false,
-                            "🔔 [Yesterday] Quote of the day: Tap on the quote card to view brand new unique motivation!" to false
-                        ).forEach { (logText, isNew) ->
+                        notificationLogs.take(4).forEach { (logText, isNew) ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1915,9 +2231,13 @@ fun DashboardScreen(
         // Weekly Progress Graph (What got done)
         item {
             val focusSessions by viewModel.focusSessions.collectAsState()
+            val allTasks by viewModel.allTasks.collectAsState()
+            val activeRecallLogs by viewModel.activeRecallLogs.collectAsState()
+            val revisionSlotLogs by viewModel.revisionSlotLogs.collectAsState()
+            val aiCoachLogs by viewModel.aiCoachLogs.collectAsState()
             
-            // Calculate current week Sunday to Saturday with 0% to 100% metrics
-            val currentWeekData = remember(focusSessions) {
+            // Calculate current week Sunday to Saturday with 0% to 100% metrics across 5 core categories
+            val currentWeekData = remember(focusSessions, allTasks, activeRecallLogs, revisionSlotLogs, aiCoachLogs) {
                 val list = mutableListOf<DayProgress>()
                 val cal = Calendar.getInstance()
                 
@@ -1942,74 +2262,46 @@ fun DashboardScreen(
                     val dayLabel = dayFormat.format(dayCal.time)
                     
                     val daySessions = focusSessions.filter { it.timestamp in dayStart until dayEnd }
-                    val hasStudy = daySessions.isNotEmpty()
-                    
-                    // 1. Hours Studied (max 25%)
-                    val mins = daySessions.sumOf { it.durationMinutes }
-                    val hoursStudiedPct = ((mins / 300f).coerceIn(0f, 1f) * 25f)
-                    
-                    // 2. Test Scores (max 20%)
-                    val hasTest = daySessions.any { 
-                        val title = it.taskTitle.lowercase()
-                        title.contains("test") || title.contains("exam") || title.contains("quiz") || title.contains("past paper") || title.contains("marathon")
+                    val dayCompletedTasks = allTasks.filter { 
+                        it.isCompleted && ((it.dueDate in dayStart until dayEnd) || (it.dueDate == 0L && dayCal.timeInMillis in dayStart until dayEnd))
                     }
-                    val rawTestScore = when {
-                        !hasStudy -> 0f
-                        hasTest -> 92f
-                        daySessions.any { it.taskTitle.lowercase().contains("sprint") || it.taskTitle.lowercase().contains("prep") } -> 86f
-                        else -> 78f
+
+                    // 1. Hours Studied (max 20%)
+                    val hrsStudied = daySessions.sumOf { it.durationMinutes } / 60f
+                    val hoursStudiedPct = ((hrsStudied / 4f).coerceIn(0f, 1f) * 20f)
+
+                    // 2. Active Recall Sessions (max 20%)
+                    val dayRecallLogsCount = activeRecallLogs.count { it in dayStart until dayEnd }
+                    val dayRecallSessionCount = daySessions.count { 
+                        val t = it.taskTitle.lowercase()
+                        t.contains("recall") || t.contains("active") || t.contains("flashcard") || t.contains("quiz") || t.contains("practice")
                     }
-                    val testScorePct = (rawTestScore / 100f) * 20f
-                    
-                    // 3. Tasks Completed (max 15%)
-                    val rawTasksCompleted = when {
-                        !hasStudy -> 0f
-                        daySessions.size >= 3 -> 100f
-                        daySessions.size == 2 -> 75f
-                        else -> 50f
+                    val recallCount = (dayRecallLogsCount + dayRecallSessionCount).coerceAtLeast(if (daySessions.isNotEmpty()) 1 else 0)
+                    val recallPct = ((recallCount / 3f).coerceIn(0f, 1f) * 20f)
+
+                    // 3. Revision Slots (max 20%)
+                    val dayRevisionLogsCount = revisionSlotLogs.count { it in dayStart until dayEnd }
+                    val dayRevisionSessionCount = daySessions.count { 
+                        val t = it.taskTitle.lowercase()
+                        t.contains("revision") || t.contains("review") || t.contains("prep")
                     }
-                    val tasksCompletedPct = (rawTasksCompleted / 100f) * 15f
-                    
-                    // 4. AI Coach Guidance (max 10%)
-                    val rawAiCoach = when {
-                        !hasStudy -> 0f
-                        daySessions.size >= 3 -> 90f
-                        daySessions.size == 2 -> 70f
-                        else -> 40f
-                    }
-                    val aiCoachPct = (rawAiCoach / 100f) * 10f
-                    
-                    // 5. Revision Slots (max 15%)
-                    val hasRevision = daySessions.any {
-                        val title = it.taskTitle.lowercase()
-                        title.contains("revision") || title.contains("review") || title.contains("prep") || title.contains("study")
-                    }
-                    val rawRevision = when {
-                        !hasStudy -> 0f
-                        hasRevision -> 100f
-                        else -> 60f
-                    }
-                    val revisionPct = (rawRevision / 100f) * 15f
-                    
-                    // 6. Active Recall Practice (max 15%)
-                    val hasActiveRecall = daySessions.any {
-                        val title = it.taskTitle.lowercase()
-                        title.contains("diagram") || title.contains("lab") || title.contains("exercise") || title.contains("practice") || title.contains("marathon")
-                    }
-                    val rawRecall = when {
-                        !hasStudy -> 0f
-                        hasActiveRecall -> 95f
-                        else -> 70f
-                    }
-                    val recallPct = (rawRecall / 100f) * 15f
-                    
+                    val revisionCount = (dayRevisionLogsCount + dayRevisionSessionCount).coerceAtLeast(if (daySessions.isNotEmpty()) 1 else 0)
+                    val revisionPct = ((revisionCount / 3f).coerceIn(0f, 1f) * 20f)
+
+                    // 4. Tasks Completed (max 20%)
+                    val tasksCount = dayCompletedTasks.size.coerceAtLeast(if (daySessions.isNotEmpty()) 2 else 0)
+                    val tasksCompletedPct = ((tasksCount / 4f).coerceIn(0f, 1f) * 20f)
+
+                    // 5. AI Coach Usage (max 20%)
+                    val aiCoachCount = aiCoachLogs.count { it in dayStart until dayEnd }.coerceAtLeast(if (daySessions.isNotEmpty()) 1 else 0)
+                    val aiCoachPct = ((aiCoachCount / 4f).coerceIn(0f, 1f) * 20f)
+
                     val percentages = floatArrayOf(
                         hoursStudiedPct,
-                        testScorePct,
-                        tasksCompletedPct,
-                        aiCoachPct,
+                        recallPct,
                         revisionPct,
-                        recallPct
+                        tasksCompletedPct,
+                        aiCoachPct
                     )
                     
                     list.add(DayProgress(dayLabel, percentages))
@@ -2208,13 +2500,12 @@ fun DashboardScreen(
                                                     // Detail breakdown of study categories
                                                     val categoryNames = listOf(
                                                         "Hours Studied",
-                                                        "Test Scores",
-                                                        "Tasks Completed",
-                                                        "AI Coach Guidance",
+                                                        "Active Recall Sessions",
                                                         "Revision Slots",
-                                                        "Active Recall"
+                                                        "Tasks Completed",
+                                                        "AI Coach Usage"
                                                     )
-                                                    for (c in 0 until 6) {
+                                                    for (c in 0 until 5) {
                                                         val valPct = dayProgress.categoryHours[c]
                                                         if (valPct > 0f) {
                                                             Row(
@@ -2247,14 +2538,13 @@ fun DashboardScreen(
                     
                     Spacer(modifier = Modifier.height(4.dp))
                     
-                    // Legends List matching study theme
+                    // Legends List matching study theme (exactly 5 metrics)
                     val legendItems = listOf(
                         "Hours Studied" to categoryColors[0],
-                        "Test Scores" to categoryColors[1],
-                        "Tasks Completed" to categoryColors[2],
-                        "AI Coach" to categoryColors[3],
-                        "Revision Slots" to categoryColors[4],
-                        "Active Recall" to categoryColors[5]
+                        "Active Recall Sessions" to categoryColors[1],
+                        "Revision Slots" to categoryColors[2],
+                        "Tasks Completed" to categoryColors[3],
+                        "AI Coach Usage" to categoryColors[4]
                     )
                     
                     // Display legends in a flow-like layout (2 rows of 3, or flow layout)
@@ -2315,8 +2605,54 @@ fun DashboardScreen(
             }
         }
 
+    }
 
-
+    if (showEditDaysDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDaysDialog = false },
+            title = { Text("Edit Days Left to Matric Finals 🎓", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Set the remaining days until your Matric final exams:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = SoftGray
+                    )
+                    OutlinedTextField(
+                        value = daysInputText,
+                        onValueChange = { daysInputText = it.filter { c -> c.isDigit() } },
+                        label = { Text("Days Remaining") },
+                        placeholder = { Text("e.g. 95") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val days = daysInputText.toIntOrNull()
+                        if (days != null) {
+                            viewModel.setMatricExamDays(days)
+                            showEditDaysDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save Days Left")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDaysDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -2427,11 +2763,48 @@ fun TaskRowItem(
                             )
                         }
 
+                        val cal = remember(task.dueDate) { java.util.Calendar.getInstance().apply { timeInMillis = task.dueDate } }
+                        val hr = cal.get(java.util.Calendar.HOUR_OF_DAY)
+                        val min = cal.get(java.util.Calendar.MINUTE)
+                        val isAm = hr < 12
+                        val hour12 = when {
+                            hr == 0 -> 12
+                            hr > 12 -> hr - 12
+                            else -> hr
+                        }
+                        val amPm = if (isAm) "AM" else "PM"
+                        val timeFormatted = String.format("%02d:%02d %s", hour12, min, amPm)
+
+                        Text(
+                            text = "⏰ $timeFormatted",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = PrimaryLilac,
+                            fontWeight = FontWeight.Bold
+                        )
+
                         Text(
                             text = "⏱️ ${task.estimatedMinutes}m",
                             style = MaterialTheme.typography.labelSmall,
                             color = SoftGray
                         )
+
+                        val xpReward = remember(task.estimatedMinutes, task.workloadScore) {
+                            (task.estimatedMinutes * 2) + (task.workloadScore * 10)
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SunnyYellow.copy(alpha = 0.2f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "⭐ +$xpReward XP",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = SunnyYellow,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
 
                         if (task.rescheduledCount > 0) {
                             Text(
@@ -2459,7 +2832,11 @@ fun TaskRowItem(
 // --- SCREEN 2: SMART SCAN / TASK ENTRY ---
 @Composable
 fun ScannerScreen(viewModel: StudyViewModel) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val scanLoading by viewModel.scanLoading.collectAsState()
+    val isAnalyzingTodo by viewModel.isAnalyzingTodo.collectAsState()
+    val proposedTasks by viewModel.proposedTasks.collectAsState()
+
     var homeworkInputText by remember { mutableStateOf("") }
     var resultMessage by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
@@ -2472,12 +2849,44 @@ fun ScannerScreen(viewModel: StudyViewModel) {
     ) { bitmap: Bitmap? ->
         if (bitmap != null) {
             capturedBitmap = bitmap
-            homeworkInputText = """
-                - Mathematics limit functions homework questions 1 to 5
-                - Physical Sciences friction force experiment report revision
-                - Life Sciences cell genetics diagram drawing
-            """.trimIndent()
-            Toast.makeText(context, "Photo captured! Scanned items loaded. You can modify them below! 📝✨", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Scanning image with Vision AI...", Toast.LENGTH_SHORT).show()
+            viewModel.processHomeworkImage(
+                bitmap = bitmap,
+                onTextExtracted = { text ->
+                    homeworkInputText = text
+                    Toast.makeText(context, "Vision AI extracted raw text! Edit or modify below 📝✨", Toast.LENGTH_LONG).show()
+                },
+                onError = { err ->
+                    Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                }
+            )
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                if (bitmap != null) {
+                    capturedBitmap = bitmap
+                    Toast.makeText(context, "Scanning image with Vision AI...", Toast.LENGTH_SHORT).show()
+                    viewModel.processHomeworkImage(
+                        bitmap = bitmap,
+                        onTextExtracted = { text ->
+                            homeworkInputText = text
+                            Toast.makeText(context, "Vision AI extracted raw text! Edit or modify below 📝✨", Toast.LENGTH_LONG).show()
+                        },
+                        onError = { err ->
+                            Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Could not load image: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -2497,136 +2906,176 @@ fun ScannerScreen(viewModel: StudyViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Element 1: Header
         item {
-            Text(
-                text = "Smart Homework Scanner 📝",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                text = "Take a photo of your handwritten homework list/syllabus using the back camera, or paste your assignment details below to structure your dashboard study plan!",
-                style = MaterialTheme.typography.bodyMedium,
-                color = SoftGray
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Smart Homework Scanner 📝",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Snap or upload handwritten homework lists to analyze and auto-schedule instantly.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = SoftGray
+                )
+            }
         }
 
-        // Viewfinder styled with rounded brackets & captured image support
+        // Element 2: Camera / Upload Viewfinder
         item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MidnightPlum)
-                    .border(2.dp, PrimaryLilac, RoundedCornerShape(24.dp))
-                    .clickable {
-                        val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
-                        if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
-                            cameraLauncher.launch(null)
-                        } else {
-                            permissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (capturedBitmap != null) {
-                    Image(
-                        bitmap = capturedBitmap!!.asImageBitmap(),
-                        contentDescription = "Captured To-Do List",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                }
-
-                // Bracket Corners
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val margin = 20.dp.toPx()
-                    val len = 30.dp.toPx()
-                    val stroke = 6f
-                    val strokeColor = if (capturedBitmap != null) MintGreen else Color.White
-
-                    // Top Left Bracket
-                    drawLine(strokeColor, Offset(margin, margin), Offset(margin + len, margin), stroke)
-                    drawLine(strokeColor, Offset(margin, margin), Offset(margin, margin + len), stroke)
-
-                    // Top Right Bracket
-                    drawLine(strokeColor, Offset(size.width - margin, margin), Offset(size.width - margin - len, margin), stroke)
-                    drawLine(strokeColor, Offset(size.width - margin, margin), Offset(size.width - margin, margin + len), stroke)
-
-                    // Bottom Left Bracket
-                    drawLine(strokeColor, Offset(margin, size.height - margin), Offset(margin + len, size.height - margin), stroke)
-                    drawLine(strokeColor, Offset(margin, size.height - margin), Offset(margin, size.height - margin - len), stroke)
-
-                    // Bottom Right Bracket
-                    drawLine(strokeColor, Offset(size.width - margin, size.height - margin), Offset(size.width - margin - len, size.height - margin), stroke)
-                    drawLine(strokeColor, Offset(size.width - margin, size.height - margin), Offset(size.width - margin, size.height - margin - len), stroke)
-                }
-
-                // Scanning Line Animation
-                if (scanLoading) {
-                    val infiniteTransition = rememberInfiniteTransition()
-                    val scanOffset by infiniteTransition.animateFloat(
-                        initialValue = 0.1f,
-                        targetValue = 0.9f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(2000, easing = LinearEasing),
-                            repeatMode = RepeatMode.Reverse
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MidnightPlum)
+                        .border(2.dp, PrimaryLilac, RoundedCornerShape(24.dp))
+                        .clickable {
+                            val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                            if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+                                cameraLauncher.launch(null)
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (capturedBitmap != null) {
+                        Image(
+                            bitmap = capturedBitmap!!.asImageBitmap(),
+                            contentDescription = "Captured Homework List",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
                         )
-                    )
+                    }
 
+                    // Bracket Corners
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        val y = size.height * scanOffset
-                        drawLine(
-                            color = MintGreen,
-                            start = Offset(0f, y),
-                            end = Offset(size.width, y),
-                            strokeWidth = 8f
+                        val margin = 20.dp.toPx()
+                        val len = 30.dp.toPx()
+                        val stroke = 6f
+                        val strokeColor = if (capturedBitmap != null) MintGreen else Color.White
+
+                        // Top Left
+                        drawLine(strokeColor, Offset(margin, margin), Offset(margin + len, margin), stroke)
+                        drawLine(strokeColor, Offset(margin, margin), Offset(margin, margin + len), stroke)
+
+                        // Top Right
+                        drawLine(strokeColor, Offset(size.width - margin, margin), Offset(size.width - margin - len, margin), stroke)
+                        drawLine(strokeColor, Offset(size.width - margin, margin), Offset(size.width - margin, margin + len), stroke)
+
+                        // Bottom Left
+                        drawLine(strokeColor, Offset(margin, size.height - margin), Offset(margin + len, size.height - margin), stroke)
+                        drawLine(strokeColor, Offset(margin, size.height - margin), Offset(margin, size.height - margin - len), stroke)
+
+                        // Bottom Right
+                        drawLine(strokeColor, Offset(size.width - margin, size.height - margin), Offset(size.width - margin - len, size.height - margin), stroke)
+                        drawLine(strokeColor, Offset(size.width - margin, size.height - margin), Offset(size.width - margin, size.height - margin - len), stroke)
+                    }
+
+                    // Scanning Line Animation
+                    if (scanLoading || isAnalyzingTodo) {
+                        val infiniteTransition = rememberInfiniteTransition()
+                        val scanOffset by infiniteTransition.animateFloat(
+                            initialValue = 0.1f,
+                            targetValue = 0.9f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(2000, easing = LinearEasing),
+                                repeatMode = RepeatMode.Reverse
+                            )
                         )
+
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val y = size.height * scanOffset
+                            drawLine(
+                                color = MintGreen,
+                                start = Offset(0f, y),
+                                end = Offset(size.width, y),
+                                strokeWidth = 8f
+                            )
+                        }
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .padding(12.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        if (scanLoading || isAnalyzingTodo) {
+                            CircularProgressIndicator(
+                                color = MintGreen,
+                                modifier = Modifier.size(32.dp),
+                                strokeWidth = 3.dp
+                            )
+                            Text(
+                                text = if (scanLoading) "Vision AI deciphering handwriting..." else "AI organizing schedule...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (capturedBitmap != null) Icons.Rounded.CheckCircle else Icons.Rounded.PhotoCamera,
+                                contentDescription = "Scan Icon",
+                                tint = if (capturedBitmap != null) MintGreen else PrimaryLilac,
+                                modifier = Modifier.size(42.dp)
+                            )
+                            Text(
+                                text = if (capturedBitmap != null) "Photo Loaded! Tap to re-shoot 📸" else "Tap Viewfinder to take photo 📸",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.45f))
-                        .padding(12.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (scanLoading) {
-                        Icon(
-                            imageVector = Icons.Rounded.Edit,
-                            contentDescription = "Analyzing",
-                            tint = SunnyYellow,
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Text(
-                            text = "AI is reading your homework like a pro...",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    } else {
-                        Icon(
-                            imageVector = if (capturedBitmap != null) Icons.Rounded.CheckCircle else Icons.Rounded.PhotoCamera,
-                            contentDescription = "Scan Icon",
-                            tint = if (capturedBitmap != null) MintGreen else PrimaryLilac,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Text(
-                            text = if (capturedBitmap != null) "Photo Captured! Tap to re-shoot 📸" else "Tap Viewfinder to take photo with Back Camera 📸",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            textAlign = TextAlign.Center
-                        )
+                    OutlinedButton(
+                        onClick = {
+                            val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                            if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+                                cameraLauncher.launch(null)
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryLilac)
+                    ) {
+                        Icon(Icons.Rounded.PhotoCamera, contentDescription = "Camera", tint = PrimaryLilac)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Snap Photo 📸", color = PrimaryLilac, fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            galleryLauncher.launch("image/*")
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryLilac)
+                    ) {
+                        Icon(Icons.Rounded.Image, contentDescription = "Upload", tint = PrimaryLilac)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Upload Image 🖼️", color = PrimaryLilac, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
-        // Text input for Homework guidelines
+        // Element 3: Text Guidelines Box
         item {
             OutlinedTextField(
                 value = homeworkInputText,
@@ -2636,11 +3085,9 @@ fun ScannerScreen(viewModel: StudyViewModel) {
                     .height(140.dp)
                     .testTag("homework_scanner_input"),
                 placeholder = {
-                    Text(
-                        "Example: Math limits homework. Solve questions 1-5 on page 42 in textbook. Physics test on organic chemistry on Friday morning."
-                    )
+                    Text("Add, modify or paste text guidelines here...")
                 },
-                label = { Text("Add, modify, or paste text guidelines here") },
+                label = { Text("Add, modify or paste text guidelines here") },
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = PrimaryLilac,
@@ -2649,60 +3096,63 @@ fun ScannerScreen(viewModel: StudyViewModel) {
             )
         }
 
-        // Action Buttons
+        // Element 4: Single Primary Action Button
         item {
             Button(
                 onClick = {
                     if (homeworkInputText.isNotBlank()) {
-                        viewModel.scanHomeworkText(homeworkInputText)
-                        coroutineScope.launch {
-                            delay(2000L) // Wait simulation or real
-                            resultMessage = "Awesome! 🚀 AI structured ${homeworkInputText.split("\n").filter { it.isNotBlank() }.size.coerceAtLeast(1)} new task(s) and added them to your dashboard study plan."
-                        }
+                        viewModel.analyzeAndDivideTodoPlan(homeworkInputText)
+                        resultMessage = "AI Analyzed & Auto-Scheduled Tasks! 🧠✨ Blocks pushed to Today's Schedule & Timeline!"
+                        Toast.makeText(context, "AI Analyzed & Scheduled Tasks! 🧠✨", Toast.LENGTH_SHORT).show()
+                    } else if (capturedBitmap != null && !scanLoading) {
+                        viewModel.processHomeworkImage(
+                            bitmap = capturedBitmap!!,
+                            onTextExtracted = { text ->
+                                homeworkInputText = text
+                                viewModel.analyzeAndDivideTodoPlan(text)
+                                resultMessage = "AI Analyzed & Auto-Scheduled Tasks! 🧠✨ Blocks pushed to Today's Schedule & Timeline!"
+                                Toast.makeText(context, "AI Analyzed & Scheduled Tasks! 🧠✨", Toast.LENGTH_SHORT).show()
+                            },
+                            onError = { err ->
+                                Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                            }
+                        )
+                    } else {
+                        Toast.makeText(context, "Please snap/upload an image or enter text guidelines first!", Toast.LENGTH_SHORT).show()
                     }
                 },
+                enabled = !scanLoading && !isAnalyzingTodo,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
-                    .testTag("scan_homework_button"),
+                    .height(54.dp)
+                    .testTag("scan_auto_schedule_button"),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(20.dp)
             ) {
-                Text("Analyze Homework with AI Spark ✨", fontWeight = FontWeight.Bold)
-            }
-        }
-
-        // Result Card
-        if (resultMessage != null) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MintGreen.copy(alpha = 0.1f))
-                        .border(1.dp, MintGreen.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                        .padding(16.dp)
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
-                            contentDescription = "Success",
-                            tint = MintGreen
+                if (scanLoading || isAnalyzingTodo) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.5.dp
                         )
-                        Column {
-                            Text(
-                                text = "Crushed it! Structured Successfully!",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MintGreen
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = resultMessage!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
+                        Text(
+                            text = "Analyzing Homework with AI Spark... ✨",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color.White
+                        )
+                    }
+                } else {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Rounded.AutoAwesome, contentDescription = "AI Spark", tint = Color.White)
+                        Text("Analyze Homework with AI Spark ✨", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
                     }
                 }
             }
@@ -2716,11 +3166,25 @@ fun CalendarScreen(viewModel: StudyViewModel) {
     val tasks by viewModel.allTasks.collectAsState()
     val isRescheduling by viewModel.isRescheduling.collectAsState()
 
+    val sleepStartHour by viewModel.sleepStartHour.collectAsState()
+    val sleepEndHour by viewModel.sleepEndHour.collectAsState()
+    val powerNapHour by viewModel.powerNapHour.collectAsState()
+    val isPowerNapEnabled by viewModel.isPowerNapEnabled.collectAsState()
+    val powerNapDuration by viewModel.powerNapDuration.collectAsState()
+    val unsealedSleepHours by viewModel.unsealedSleepHours.collectAsState()
+    val hourlySubTasks by viewModel.hourlySubTasks.collectAsState()
+
     var calendarViewMode by remember { mutableStateOf("Daily") } // "Daily", "Weekly", "Monthly"
     var selectedDayOffset by remember { mutableIntStateOf(0) }
     var editingTask by remember { mutableStateOf<Task?>(null) }
     var addingTaskHour by remember { mutableStateOf<Int?>(null) }
     var autoAdjustSalah by remember { mutableStateOf(true) }
+
+    var showSleepPlannerConfig by remember { mutableStateOf(false) }
+    var addingSubTaskHour by remember { mutableStateOf<Int?>(null) }
+    var subTaskTitleInput by remember { mutableStateOf("") }
+    var subTaskMinuteRangeInput by remember { mutableStateOf("00–20m") }
+
 
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -2889,55 +3353,6 @@ fun CalendarScreen(viewModel: StudyViewModel) {
                 }
             }
 
-            // Workload Indicator Box
-            item {
-                val isOverloaded = totalWorkloadScore >= 7
-                val statusColor = if (isOverloaded) OrangeRed else if (totalWorkloadScore > 0) PrimaryLilac else MintGreen
-                val statusText = if (isOverloaded) "Overloaded! 🥵" else if (totalWorkloadScore > 0) "Balanced load ⚖️" else "Rest day! 🛋️"
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(statusColor.copy(alpha = 0.1f))
-                        .border(1.dp, statusColor.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
-                        .padding(18.dp)
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column {
-                            Text(
-                                text = "Workload Pressure: $statusText",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = statusColor
-                            )
-                            Text(
-                                text = "Daily stress rating is $totalWorkloadScore/10 based on tasks.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(statusColor.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (isOverloaded) "😱" else if (totalWorkloadScore > 0) "🤓" else "🥳",
-                                fontSize = 20.sp
-                            )
-                        }
-                    }
-                }
-            }
-
             // Google Calendar AI Workload Balancer
             item {
                 Box(
@@ -2983,7 +3398,7 @@ fun CalendarScreen(viewModel: StudyViewModel) {
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Text(
-                            text = "Automatically reschedule and redistribute all your current study tasks across the next 7 days based on workload pressure to avoid study burnout!",
+                            text = "Automatically reschedule and redistribute all your current study tasks across the next 7 days to keep your study plan balanced and burnout-free!",
                             style = MaterialTheme.typography.bodySmall,
                             color = SoftGray
                         )
@@ -3303,23 +3718,261 @@ fun CalendarScreen(viewModel: StudyViewModel) {
             }
 
             item {
-                Text(
-                    text = "Hourly Study Timeline ⏰🗓️",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Tap on any task to edit its details, or tap on any empty slot to schedule a custom study slot!",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SoftGray
-                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Hourly Study Timeline ⏰🗓️",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                text = "24-Hour Schedule with Sealed Sleep Hours, Power Naps & Sub-Task Granularity",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = SoftGray
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { showSleepPlannerConfig = !showSleepPlannerConfig },
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(PrimaryLilac.copy(alpha = 0.15f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Settings,
+                                contentDescription = "Sleep & Nap Settings",
+                                tint = PrimaryLilac
+                            )
+                        }
+                    }
+
+                    // Sleep Schedule & Power Nap Planner Summary Card
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                if (isDark) DarkSurface.copy(alpha = 0.6f) else Color.White
+                            )
+                            .border(
+                                1.dp,
+                                if (isDark) BorderDarkPastel else BorderPastel,
+                                RoundedCornerShape(20.dp)
+                            )
+                            .padding(14.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("🌙", fontSize = 18.sp)
+                                    val calcSleep = if (sleepStartHour > sleepEndHour) (24 - sleepStartHour + sleepEndHour) else (sleepEndHour - sleepStartHour)
+                                    Column {
+                                        val startIsAm = sleepStartHour < 12
+                                        val startH12 = if (sleepStartHour == 0) 12 else if (sleepStartHour > 12) sleepStartHour - 12 else sleepStartHour
+                                        val startLabel = String.format("%02d:00 %s", startH12, if (startIsAm) "AM" else "PM")
+
+                                        val endIsAm = sleepEndHour < 12
+                                        val endH12 = if (sleepEndHour == 0) 12 else if (sleepEndHour > 12) sleepEndHour - 12 else sleepEndHour
+                                        val endLabel = String.format("%02d:00 %s", endH12, if (endIsAm) "AM" else "PM")
+
+                                        Text(
+                                            text = "Sleep Target: $startLabel – $endLabel ($calcSleep hrs)",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = if (isPowerNapEnabled) {
+                                                val napIsAm = powerNapHour < 12
+                                                val napH12 = if (powerNapHour == 0) 12 else if (powerNapHour > 12) powerNapHour - 12 else powerNapHour
+                                                val napLabel = String.format("%02d:00 %s", napH12, if (napIsAm) "AM" else "PM")
+                                                "🔋 Power Nap: $napLabel (${powerNapDuration} mins) Active"
+                                            } else "🔋 Power Nap: Disabled",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = SoftGray
+                                        )
+                                    }
+                                }
+
+                                TextButton(
+                                    onClick = { showSleepPlannerConfig = !showSleepPlannerConfig }
+                                ) {
+                                    Text(
+                                        if (showSleepPlannerConfig) "Close ✕" else "Edit Planner ⚙️",
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryLilac
+                                    )
+                                }
+                            }
+
+                            // Expandable Sleep Planner Settings Box
+                            AnimatedVisibility(visible = showSleepPlannerConfig) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(PrimaryLilac.copy(alpha = 0.08f))
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        text = "⚙️ Configure Sleep Window & Power Nap",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryLilac
+                                    )
+
+                                    // Sleep Start Hour Row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Sleep Bedtime:", style = MaterialTheme.typography.bodySmall)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            listOf(21 to "9 PM", 22 to "10 PM", 23 to "11 PM", 0 to "12 AM").forEach { (hr, lbl) ->
+                                                val sel = sleepStartHour == hr
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(if (sel) PrimaryLilac else Color.Transparent)
+                                                        .border(1.dp, if (sel) PrimaryLilac else BorderPastel, RoundedCornerShape(8.dp))
+                                                        .clickable { viewModel.setSleepSchedule(hr, sleepEndHour) }
+                                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(lbl, fontSize = 11.sp, color = if (sel) Color.White else SoftGray, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Wake Hour Row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Wake Time:", style = MaterialTheme.typography.bodySmall)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            listOf(5 to "5 AM", 6 to "6 AM", 7 to "7 AM", 8 to "8 AM").forEach { (hr, lbl) ->
+                                                val sel = sleepEndHour == hr
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(if (sel) PrimaryLilac else Color.Transparent)
+                                                        .border(1.dp, if (sel) PrimaryLilac else BorderPastel, RoundedCornerShape(8.dp))
+                                                        .clickable { viewModel.setSleepSchedule(sleepStartHour, hr) }
+                                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(lbl, fontSize = 11.sp, color = if (sel) Color.White else SoftGray, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Power Nap Config Row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text("🔋 Power Nap:", style = MaterialTheme.typography.bodySmall)
+                                            Switch(
+                                                checked = isPowerNapEnabled,
+                                                onCheckedChange = { viewModel.setPowerNap(it, powerNapHour, powerNapDuration) },
+                                                colors = SwitchDefaults.colors(checkedThumbColor = PrimaryLilac)
+                                            )
+                                        }
+
+                                        if (isPowerNapEnabled) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                listOf(13 to "1 PM", 14 to "2 PM", 15 to "3 PM").forEach { (hr, lbl) ->
+                                                    val sel = powerNapHour == hr
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .background(if (sel) MintGreen else Color.Transparent)
+                                                            .border(1.dp, if (sel) MintGreen else BorderPastel, RoundedCornerShape(8.dp))
+                                                            .clickable { viewModel.setPowerNap(true, hr, powerNapDuration) }
+                                                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text(lbl, fontSize = 11.sp, color = if (sel) Color.White else SoftGray, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (isPowerNapEnabled) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Nap Duration:", style = MaterialTheme.typography.bodySmall)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                listOf(20 to "20m", 30 to "30m", 45 to "45m").forEach { (dur, lbl) ->
+                                                    val sel = powerNapDuration == dur
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .background(if (sel) SunnyYellow else Color.Transparent)
+                                                            .border(1.dp, if (sel) SunnyYellow else BorderPastel, RoundedCornerShape(8.dp))
+                                                            .clickable { viewModel.setPowerNap(true, powerNapHour, dur) }
+                                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text(lbl, fontSize = 11.sp, color = if (sel) Color.Black else SoftGray, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
-            items((8..20).toList()) { h ->
+            items((0..23).toList()) { h ->
                 val tasksAtHour = hourToTasks[h] ?: emptyList()
-                
-                val isSalahHour = h == 13 || h == 16 || h == 19
+                val subTasksAtHour = hourlySubTasks[h] ?: emptyList()
+
+                // Check if sleep hour
+                val inSleepWindow = if (sleepStartHour > sleepEndHour) {
+                    h >= sleepStartHour || h < sleepEndHour
+                } else if (sleepStartHour < sleepEndHour) {
+                    h in sleepStartHour until sleepEndHour
+                } else false
+
+                val isUnsealed = unsealedSleepHours.contains(h)
+                val isPowerNapSlot = isPowerNapEnabled && h == powerNapHour
+
+                // Check current hour of day
+                val currentCal = Calendar.getInstance()
+                val isCurrentHour = selectedDayOffset == 0 && currentCal.get(Calendar.HOUR_OF_DAY) == h
+
+                val isSalahHour = autoAdjustSalah && (h == 13 || h == 16 || h == 19)
                 val salahName = when (h) {
                     13 -> "Dhuhr (1:00 PM)"
                     16 -> "Asr (4:00 PM)"
@@ -3327,12 +3980,22 @@ fun CalendarScreen(viewModel: StudyViewModel) {
                     else -> ""
                 }
 
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    if (autoAdjustSalah && isSalahHour) {
+                // 12-hour AM/PM label
+                val isAm = h < 12
+                val hour12 = when {
+                    h == 0 -> 12
+                    h > 12 -> h - 12
+                    else -> h
+                }
+                val amPm = if (isAm) "AM" else "PM"
+                val timeLabel = String.format("%02d:00 %s", hour12, amPm)
+
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    if (isSalahHour) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
+                                .padding(bottom = 4.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFFE8F5E9))
                                 .border(1.dp, Color(0xFFC8E6C9), RoundedCornerShape(12.dp))
@@ -3353,186 +4016,499 @@ fun CalendarScreen(viewModel: StudyViewModel) {
                         }
                     }
 
-                    // Formatted hour label in 12-hour AM/PM format
-                    val isAm = h < 12
-                    val hour12 = when {
-                        h == 0 -> 12
-                        h > 12 -> h - 12
-                        else -> h
-                    }
-                    val amPm = if (isAm) "AM" else "PM"
-                    val timeLabel = String.format("%02d:00 %s", hour12, amPm)
-
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.Top
                     ) {
-                    // 12-hour label
-                    Text(
-                        text = timeLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = SoftGray,
-                        modifier = Modifier.width(70.dp).padding(top = 8.dp)
-                    )
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    // Tasks or custom empty slots
-                    if (tasksAtHour.isNotEmpty()) {
+                        // 12-Hour Label & Current Hour Indicator
                         Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                            modifier = Modifier.width(72.dp).padding(top = 8.dp),
+                            horizontalAlignment = Alignment.Start
                         ) {
-                            for (task in tasksAtHour) {
-                                val categoryColor = when(task.subject.uppercase()) {
-                                    "MATHEMATICS", "MATH" -> Color(0xFF20BF6B)
-                                    "PHYSICAL SCIENCES", "PHYSICS" -> Color(0xFF54A0FF)
-                                    "LIFE SCIENCES", "BIOLOGY" -> Color(0xFFFF6B6B)
-                                    else -> PrimaryLilac
+                            Text(
+                                text = timeLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isCurrentHour) PrimaryLilac else SoftGray
+                            )
+
+                            if (isCurrentHour) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 2.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(PrimaryLilac)
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text("NOW 🔴", fontSize = 8.sp, color = Color.White, fontWeight = FontWeight.Bold)
                                 }
-                                
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // CASE 1: Sealed Sleep Hour (not overridden)
+                            if (inSleepWindow && !isUnsealed) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(16.dp))
-                                        .background(categoryColor.copy(alpha = 0.15f))
-                                        .border(1.5.dp, categoryColor.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                                        .clickable { editingTask = task }
+                                        .background(Color(0xFF1E1B4B))
+                                        .border(1.dp, Color(0xFF312E81), RoundedCornerShape(16.dp))
                                         .padding(12.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Row(
-                                            modifier = Modifier.weight(1f),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .clip(CircleShape)
-                                                    .background(if (task.isCompleted) MintGreen else Color.Transparent)
-                                                    .border(2.dp, if (task.isCompleted) MintGreen else categoryColor, CircleShape)
-                                                    .clickable { viewModel.toggleTaskCompletion(task) },
-                                                contentAlignment = Alignment.Center
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                if (task.isCompleted) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = "Done",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(12.dp)
-                                                    )
-                                                }
-                                            }
-                                            
-                                            Spacer(modifier = Modifier.width(10.dp))
-                                            
-                                            Column {
+                                                Text("🌙💤", fontSize = 16.sp)
                                                 Text(
-                                                    text = task.title,
-                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    text = "Sealed Sleep & Recovery Zone ($timeLabel)",
+                                                    style = MaterialTheme.typography.labelMedium,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = if (task.isCompleted) SoftGray else MaterialTheme.colorScheme.onSurface,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                                                    color = Color(0xFFE0E7FF)
                                                 )
-                                                
+                                            }
+
+                                            TextButton(
+                                                onClick = {
+                                                    viewModel.toggleUnsealSleepHour(h)
+                                                    addingTaskHour = h
+                                                },
+                                                modifier = Modifier.height(30.dp)
+                                            ) {
+                                                Text("🔓 Override", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SunnyYellow)
+                                            }
+                                        }
+
+                                        Text(
+                                            text = "Brain recovery phase. Early rest consolidates memory for your matric subjects!",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFFA5B4FC)
+                                        )
+                                    }
+                                }
+                            } else {
+                                // If unsealed sleep hour, show override badge
+                                if (inSleepWindow && isUnsealed) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(SunnyYellow.copy(alpha = 0.2f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("🔓 Overridden Sleep Hour (Night Owl Study)", fontSize = 10.sp, color = SunnyYellow, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        TextButton(
+                                            onClick = { viewModel.toggleUnsealSleepHour(h) },
+                                            modifier = Modifier.height(26.dp)
+                                        ) {
+                                            Text("🔒 Seal Back", fontSize = 10.sp, color = SoftGray)
+                                        }
+                                    }
+                                }
+
+                                // CASE 2: Power Nap Slot
+                                if (isPowerNapSlot) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(Color(0xFFFEF3C7))
+                                            .border(1.dp, Color(0xFFFDE68A), RoundedCornerShape(16.dp))
+                                            .padding(12.dp)
+                                    ) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
                                                 Row(
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .clip(RoundedCornerShape(6.dp))
-                                                            .background(categoryColor.copy(alpha = 0.2f))
-                                                            .padding(horizontal = 4.dp, vertical = 1.dp)
-                                                    ) {
-                                                        Text(
-                                                            text = task.subject,
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = categoryColor,
-                                                            fontWeight = FontWeight.Bold
+                                                    Text("🔋⚡", fontSize = 16.sp)
+                                                    Text(
+                                                        text = "Power Nap & Brain Recharge (${powerNapDuration}m)",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFF92400E)
+                                                    )
+                                                }
+
+                                                TextButton(
+                                                    onClick = { addingTaskHour = h },
+                                                    modifier = Modifier.height(30.dp)
+                                                ) {
+                                                    Text("+ Task", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryLilac)
+                                                }
+                                            }
+
+                                            Text(
+                                                text = "A 20–30 min afternoon power nap restores alertness without sleep inertia!",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Color(0xFFB45309)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Render Primary Tasks at Hour h
+                                for (task in tasksAtHour) {
+                                    val categoryColor = when (task.subject.uppercase()) {
+                                        "MATHEMATICS", "MATH" -> Color(0xFF20BF6B)
+                                        "PHYSICAL SCIENCES", "PHYSICS" -> Color(0xFF54A0FF)
+                                        "LIFE SCIENCES", "BIOLOGY" -> Color(0xFFFF6B6B)
+                                        else -> PrimaryLilac
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(categoryColor.copy(alpha = 0.15f))
+                                            .border(1.5.dp, categoryColor.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                                            .clickable { editingTask = task }
+                                            .padding(12.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.weight(1f),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clip(CircleShape)
+                                                        .background(if (task.isCompleted) MintGreen else Color.Transparent)
+                                                        .border(2.dp, if (task.isCompleted) MintGreen else categoryColor, CircleShape)
+                                                        .clickable { viewModel.toggleTaskCompletion(task) },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (task.isCompleted) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Check,
+                                                            contentDescription = "Done",
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(12.dp)
                                                         )
                                                     }
-                                                    
+                                                }
+
+                                                Spacer(modifier = Modifier.width(10.dp))
+
+                                                Column {
                                                     Text(
-                                                        text = "⏱️ ${task.estimatedMinutes}m",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = SoftGray
+                                                        text = task.title,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (task.isCompleted) SoftGray else MaterialTheme.colorScheme.onSurface,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
-                                                    
-                                                    if (task.taskType == "TEST") {
+
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
                                                         Box(
                                                             modifier = Modifier
                                                                 .clip(RoundedCornerShape(6.dp))
-                                                                .background(OrangeRed.copy(alpha = 0.2f))
+                                                                .background(categoryColor.copy(alpha = 0.2f))
                                                                 .padding(horizontal = 4.dp, vertical = 1.dp)
                                                         ) {
                                                             Text(
-                                                                text = "TEST 🚨",
+                                                                text = task.subject,
                                                                 style = MaterialTheme.typography.labelSmall,
-                                                                color = OrangeRed,
+                                                                color = categoryColor,
                                                                 fontWeight = FontWeight.Bold
                                                             )
+                                                        }
+
+                                                        Text(
+                                                            text = "⏱️ ${task.estimatedMinutes}m",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = SoftGray
+                                                        )
+
+                                                        if (task.taskType == "TEST") {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .clip(RoundedCornerShape(6.dp))
+                                                                    .background(OrangeRed.copy(alpha = 0.2f))
+                                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = "TEST 🚨",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = OrangeRed,
+                                                                    fontWeight = FontWeight.Bold
+                                                                )
+                                                            }
+                                                        } else if (task.taskType == "REVISION") {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .clip(RoundedCornerShape(6.dp))
+                                                                    .background(SecondaryPeach.copy(alpha = 0.25f))
+                                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = "REVISION GAP 🔍",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = SecondaryPeach,
+                                                                    fontWeight = FontWeight.Bold
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // Granular Sub-Minute Hourly Breakdown
+                                                    val duration = task.estimatedMinutes.coerceAtLeast(15)
+                                                    val p1 = (duration * 0.35).toInt().coerceAtLeast(10)
+                                                    val p2 = (duration * 0.45).toInt().coerceAtLeast(15)
+                                                    val breakMins = 60 - (p1 + p2)
+
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.padding(top = 4.dp)
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(PrimaryLilac.copy(alpha = 0.15f))
+                                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                        ) {
+                                                            Text("00–${p1}m: Concepts", fontSize = 9.sp, color = PrimaryLilac, fontWeight = FontWeight.Bold)
+                                                        }
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(MintGreen.copy(alpha = 0.15f))
+                                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                        ) {
+                                                            Text("${p1}–${p1 + p2}m: Active Practice", fontSize = 9.sp, color = MintGreen, fontWeight = FontWeight.Bold)
+                                                        }
+                                                        if (breakMins > 0) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .clip(RoundedCornerShape(6.dp))
+                                                                    .background(SunnyYellow.copy(alpha = 0.2f))
+                                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                            ) {
+                                                                Text("${p1 + p2}–60m: Rest ☕", fontSize = 9.sp, color = SunnyYellow, fontWeight = FontWeight.Bold)
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
+
+                                            IconButton(
+                                                onClick = { editingTask = task },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Edit,
+                                                    contentDescription = "Edit",
+                                                    tint = PrimaryLilac,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
                                         }
-                                        
-                                        IconButton(
-                                            onClick = { editingTask = task },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Edit,
-                                                contentDescription = "Edit",
-                                                tint = PrimaryLilac,
-                                                modifier = Modifier.size(18.dp)
+                                    }
+                                }
+
+                                // Render Dynamic Array of Granular Sub-Tasks for Hour h
+                                if (subTasksAtHour.isNotEmpty()) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 2.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        for (subTask in subTasksAtHour) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(if (isDark) DarkSurface.copy(alpha = 0.5f) else Color.White)
+                                                    .border(1.dp, if (isDark) BorderDarkPastel else BorderPastel, RoundedCornerShape(12.dp))
+                                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Checkbox(
+                                                        checked = subTask.isCompleted,
+                                                        onCheckedChange = { viewModel.toggleTimelineSubTask(h, subTask.id) },
+                                                        colors = CheckboxDefaults.colors(checkedColor = MintGreen)
+                                                    )
+
+                                                    if (!subTask.minuteRange.isNullOrBlank()) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(PrimaryLilac.copy(alpha = 0.18f))
+                                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                        ) {
+                                                            Text(subTask.minuteRange, fontSize = 9.5.sp, color = PrimaryLilac, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+
+                                                    Text(
+                                                        text = subTask.title,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = if (subTask.isCompleted) SoftGray else MaterialTheme.colorScheme.onSurface,
+                                                        textDecoration = if (subTask.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                                                    )
+                                                }
+
+                                                IconButton(
+                                                    onClick = { viewModel.deleteTimelineSubTask(h, subTask.id) },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Delete,
+                                                        contentDescription = "Delete sub-task",
+                                                        tint = SoftGray,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Inline Sub-Task Adder for Hour h
+                                if (addingSubTaskHour == h) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(PrimaryLilac.copy(alpha = 0.12f))
+                                            .border(1.dp, PrimaryLilac, RoundedCornerShape(14.dp))
+                                            .padding(10.dp)
+                                    ) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(
+                                                text = "➕ Add Sub-Task for $timeLabel",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = PrimaryLilac
                                             )
+
+                                            OutlinedTextField(
+                                                value = subTaskTitleInput,
+                                                onValueChange = { subTaskTitleInput = it },
+                                                placeholder = { Text("e.g., Read pages 45–50 & highlight formulas") },
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    listOf("00–20m", "20–40m", "40–60m").forEach { range ->
+                                                        val sel = subTaskMinuteRangeInput == range
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(if (sel) PrimaryLilac else Color.Transparent)
+                                                                .border(1.dp, if (sel) PrimaryLilac else BorderPastel, RoundedCornerShape(6.dp))
+                                                                .clickable { subTaskMinuteRangeInput = range }
+                                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        ) {
+                                                            Text(range, fontSize = 9.sp, color = if (sel) Color.White else SoftGray, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+                                                }
+
+                                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    TextButton(onClick = { addingSubTaskHour = null }) {
+                                                        Text("Cancel", fontSize = 11.sp, color = SoftGray)
+                                                    }
+                                                    Button(
+                                                        onClick = {
+                                                            if (subTaskTitleInput.isNotBlank()) {
+                                                                viewModel.addTimelineSubTask(h, subTaskTitleInput, subTaskMinuteRangeInput)
+                                                                subTaskTitleInput = ""
+                                                                addingSubTaskHour = null
+                                                            }
+                                                        },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text("Add", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Row with quick inline action buttons
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        TextButton(
+                                            onClick = {
+                                                addingSubTaskHour = h
+                                                subTaskTitleInput = ""
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Icon(Icons.Rounded.Add, contentDescription = "Sub-task", modifier = Modifier.size(12.dp), tint = PrimaryLilac)
+                                                Text("+ Add sub-task", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryLilac)
+                                            }
+                                        }
+
+                                        if (tasksAtHour.isEmpty() && !isPowerNapSlot) {
+                                            TextButton(
+                                                onClick = { addingTaskHour = h },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Icon(Icons.Rounded.Add, contentDescription = "Task slot", modifier = Modifier.size(12.dp), tint = SoftGray)
+                                                    Text("+ Custom Study Slot", fontSize = 11.sp, color = SoftGray)
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    } else {
-                        // Empty slot - allows customization
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (isDark) DarkSurface.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.4f))
-                                .border(1.dp, if (isDark) BorderDarkPastel.copy(alpha = 0.12f) else BorderPastel.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                                .clickable { addingTaskHour = h }
-                                .padding(horizontal = 12.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Add,
-                                    contentDescription = "Add slot",
-                                    tint = SoftGray.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Text(
-                                    text = "[Tap to schedule a custom study slot] 😴",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = SoftGray.copy(alpha = 0.5f)
-                                )
-                            }
-                        }
                     }
                 }
-                }
             }
+
         } else if (calendarViewMode == "Weekly") {
             // Weekly schedule showing next 7 days and highlighting upcoming papers/tests
             val weekTests = tasks.filter { !it.isCompleted && (it.taskType == "TEST" || it.taskType == "ASSIGNMENT") && it.dueDate in System.currentTimeMillis()..(System.currentTimeMillis() + 7 * 86400000L) }
@@ -4141,116 +5117,436 @@ fun CalendarScreen(viewModel: StudyViewModel) {
 @Composable
 fun MistakesScreen(viewModel: StudyViewModel) {
     val weakTopics by viewModel.allWeakTopics.collectAsState()
+    val allTasks by viewModel.allTasks.collectAsState()
     val mistakeLoading by viewModel.mistakeLoading.collectAsState()
+
     var mistakeInputText by remember { mutableStateOf("") }
-    val coroutineScope = rememberCoroutineScope()
+    var selectedSubject by remember { mutableStateOf("Mathematics") }
+    var isManualAddOpen by remember { mutableStateOf(false) }
+    var manualTopicName by remember { mutableStateOf("") }
+    var manualDescription by remember { mutableStateOf("") }
+    var manualConfidence by remember { mutableIntStateOf(2) }
+
+    // State for interactive scheduling prompt modal
+    var schedulingTopic by remember { mutableStateOf<WeakTopic?>(null) }
+
     val context = LocalContext.current
+    val isDark = isSystemInDarkTheme()
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(
-                text = "AI Gaps & Mistake Analyzer 🔍",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                text = "Type or paste comments/corrections from your tests or practice papers. Our AI finds your learning weak spots and inserts custom revision sessions!",
-                style = MaterialTheme.typography.bodyMedium,
-                color = SoftGray
-            )
-        }
+    // Filter active revision tasks
+    val revisionTasks = remember(allTasks) {
+        allTasks.filter { it.taskType == "REVISION" && !it.isCompleted }
+            .sortedBy { it.dueDate }
+    }
 
-        // Input Box
-        item {
-            OutlinedTextField(
-                value = mistakeInputText,
-                onValueChange = { mistakeInputText = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-                    .testTag("mistakes_input"),
-                placeholder = {
-                    Text(
-                        "Example: In Physical Sciences test, I got 2/10 in the organic chemistry nomenclature section. I kept getting prefixes mixed up for aldehydes and ketones."
-                    )
-                },
-                label = { Text("Describe test mistakes or paste grader comments") },
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = PrimaryLilac,
-                    unfocusedBorderColor = BorderPastel
-                )
-            )
-        }
-
-        // Scan button
-        item {
-            Button(
-                onClick = {
-                    if (mistakeInputText.isNotBlank()) {
-                        viewModel.analyzeMistakesText(mistakeInputText)
-                        Toast.makeText(context, "Studyly is analyzing test gaps... 🔍🧠", Toast.LENGTH_SHORT).show()
-                        mistakeInputText = ""
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .testTag("analyze_mistakes_button"),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
-                shape = RoundedCornerShape(24.dp)
-            ) {
-                if (mistakeLoading) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Detecting learning gaps...")
-                } else {
-                    Text("Analyze Mistakes & Schedule Revision ✨", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        // Title: Identified Weak Topics
-        item {
-            Text(
-                text = "Identified Matric Weak Topics ⚠️",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        }
-
-        if (weakTopics.isEmpty()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "AI Gaps & Mistake Analyzer 🔍",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+
+                        TextButton(onClick = { isManualAddOpen = !isManualAddOpen }) {
+                            Text(
+                                text = if (isManualAddOpen) "Close ✕" else "+ Log Gap Manually",
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryLilac
+                            )
+                        }
+                    }
+
                     Text(
-                        text = "Awesome! No weak topics detected yet. Keep practicing! 🎓✨",
+                        text = "Type or paste test feedback, errors, or grader comments. Our AI detects conceptual weak spots and schedules revision sessions on your Calendar & Hourly Timeline!",
                         style = MaterialTheme.typography.bodyMedium,
                         color = SoftGray
                     )
                 }
             }
-        } else {
-            items(weakTopics) { topic ->
-                WeakTopicItem(topic = topic)
+
+            // Input Section: Text box & Subject selection chips
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (isDark) DarkSurface else Color.White)
+                        .border(1.dp, if (isDark) BorderDarkPastel else BorderPastel, RoundedCornerShape(20.dp))
+                        .padding(16.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = "📝 Log Conceptual Weakness or Paste Grader Feedback",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        // Subject chips selector
+                        Text("Select Subject Category:", style = MaterialTheme.typography.labelMedium, color = SoftGray)
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val subjects = listOf("Mathematics", "Physical Sciences", "Life Sciences", "Accounting", "English FAL", "Geography", "History")
+                            items(subjects) { subj ->
+                                val selected = selectedSubject == subj
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (selected) PrimaryLilac else PrimaryLilac.copy(alpha = 0.1f))
+                                        .border(1.dp, if (selected) PrimaryLilac else BorderPastel, RoundedCornerShape(12.dp))
+                                        .clickable { selectedSubject = subj }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = subj,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (selected) Color.White else PrimaryLilac,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        // Text Area Input
+                        OutlinedTextField(
+                            value = mistakeInputText,
+                            onValueChange = { mistakeInputText = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                                .testTag("mistakes_input"),
+                            placeholder = {
+                                Text(
+                                    "Example: In Physical Sciences test, I lost marks on organic chemistry nomenclature. I get confused between aldehyde and ketone suffixes (-al vs -one)."
+                                )
+                            },
+                            label = { Text("Describe test mistakes, exam feedback, or study gaps") },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryLilac,
+                                unfocusedBorderColor = BorderPastel
+                            )
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Button 1: AI Auto-Analyze
+                            Button(
+                                onClick = {
+                                    if (mistakeInputText.isNotBlank()) {
+                                        val textToAnalyze = mistakeInputText
+                                        mistakeInputText = ""
+                                        Toast.makeText(context, "AI is detecting learning gaps... 🔍🧠", Toast.LENGTH_SHORT).show()
+                                        viewModel.analyzeMistakesText(textToAnalyze) { discoveredTopics ->
+                                            if (discoveredTopics.isNotEmpty()) {
+                                                schedulingTopic = discoveredTopics.first()
+                                            }
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "Please enter your test mistakes or feedback first!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                                    .testTag("analyze_mistakes_button"),
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                if (mistakeLoading) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Analyzing...", fontSize = 13.sp)
+                                } else {
+                                    Text("AI Auto-Analyze ✨", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                            }
+
+                            // Button 2: Quick Schedule Revision Prompt directly
+                            OutlinedButton(
+                                onClick = {
+                                    if (mistakeInputText.isNotBlank()) {
+                                        val tempTopic = WeakTopic(
+                                            subject = selectedSubject,
+                                            topicName = mistakeInputText.take(40) + if (mistakeInputText.length > 40) "..." else "",
+                                            confidenceLevel = 2,
+                                            mistakeDescription = mistakeInputText,
+                                            studentName = ""
+                                        )
+                                        schedulingTopic = tempTopic
+                                        mistakeInputText = ""
+                                    } else {
+                                        Toast.makeText(context, "Please enter your test mistake description first!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, PrimaryLilac)
+                            ) {
+                                Text("Schedule Revision 📅", fontWeight = FontWeight.Bold, color = PrimaryLilac, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
             }
+
+            // Expandable Manual Log Form
+            item {
+                AnimatedVisibility(visible = isManualAddOpen) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(PrimaryLilac.copy(alpha = 0.08f))
+                            .border(1.5.dp, PrimaryLilac.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "➕ Directly Log Weak Point & Choose Revision Time",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryLilac
+                            )
+
+                            OutlinedTextField(
+                                value = manualTopicName,
+                                onValueChange = { manualTopicName = it },
+                                label = { Text("Topic / Chapter Name (e.g. Newton's Laws)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = manualDescription,
+                                onValueChange = { manualDescription = it },
+                                label = { Text("Specific Gap / Common Mistake") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            // Confidence rating
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Current Confidence Level:", style = MaterialTheme.typography.bodySmall, color = SoftGray)
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    (1..5).forEach { star ->
+                                        Icon(
+                                            imageVector = Icons.Filled.Star,
+                                            contentDescription = "Star $star",
+                                            tint = if (star <= manualConfidence) SunnyYellow else SoftGray.copy(alpha = 0.3f),
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clickable { manualConfidence = star }
+                                        )
+                                    }
+                                }
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (manualTopicName.isNotBlank()) {
+                                        val newTopic = WeakTopic(
+                                            subject = selectedSubject,
+                                            topicName = manualTopicName,
+                                            confidenceLevel = manualConfidence,
+                                            mistakeDescription = if (manualDescription.isBlank()) "Conceptual gap logged by student." else manualDescription
+                                        )
+                                        schedulingTopic = newTopic
+                                        isManualAddOpen = false
+                                        manualTopicName = ""
+                                        manualDescription = ""
+                                    } else {
+                                        Toast.makeText(context, "Please enter a topic name!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac)
+                            ) {
+                                Text("Set Revision Date & Time ⏱️", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Section: Scheduled Active Revision Sessions & Reminders
+            if (revisionTasks.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "⏰ Active Revision Reminders & Timeline Sync",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+
+                        revisionTasks.take(4).forEach { revTask ->
+                            val dateStr = java.text.SimpleDateFormat("E, MMM dd 'at' hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(revTask.dueDate))
+                            val isToday = android.text.format.DateUtils.isToday(revTask.dueDate)
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isToday) SecondaryPeach.copy(alpha = 0.15f) else PrimaryLilac.copy(alpha = 0.08f))
+                                    .border(1.dp, if (isToday) SecondaryPeach else PrimaryLilac.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                                    .padding(14.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Text(if (isToday) "🚨 TODAY" else "📅 REVISION", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isToday) SecondaryPeach else PrimaryLilac)
+                                            Text("• ${revTask.subject}", fontSize = 11.sp, color = SoftGray)
+                                        }
+                                        Text(revTask.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                        Text("Scheduled: $dateStr (${revTask.estimatedMinutes} mins)", style = MaterialTheme.typography.labelSmall, color = SoftGray)
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            viewModel.toggleTaskCompletion(revTask)
+                                            Toast.makeText(context, "Revision completed! Great job! 🌟", Toast.LENGTH_SHORT).show()
+                                        }
+                                    ) {
+                                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "Done", tint = MintGreen)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Identified Weak Topics Header
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Identified Matric Weak Topics ⚠️",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+
+                    if (weakTopics.isNotEmpty()) {
+                        Text(
+                            text = "${weakTopics.size} Topics Logged",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = SoftGray
+                        )
+                    }
+                }
+            }
+
+            if (weakTopics.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("🎓✨", fontSize = 32.sp)
+                            Text(
+                                text = "No weak topics logged yet! Type your test feedback above to detect learning gaps.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = SoftGray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(weakTopics) { topic ->
+                    WeakTopicCard(
+                        topic = topic,
+                        onRescheduleClick = { schedulingTopic = topic },
+                        onDeleteClick = {
+                            viewModel.deleteWeakTopic(topic)
+                            Toast.makeText(context, "Weak topic removed", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+        }
+
+        // Interactive Revision Scheduling Prompt Modal Dialog
+        schedulingTopic?.let { topicToSchedule ->
+            RevisionSchedulingModalDialog(
+                topic = topicToSchedule,
+                onDismiss = { schedulingTopic = null },
+                onConfirm = { targetTimestamp, durationMins ->
+                    if (topicToSchedule.id == 0L) {
+                        // New topic creation
+                        viewModel.addCustomWeakTopicAndSchedule(
+                            subject = topicToSchedule.subject,
+                            topicName = topicToSchedule.topicName,
+                            mistakeDescription = topicToSchedule.mistakeDescription,
+                            confidenceLevel = topicToSchedule.confidenceLevel,
+                            targetTimestamp = targetTimestamp,
+                            durationMinutes = durationMins
+                        )
+                    } else {
+                        // Existing topic reschedule
+                        viewModel.scheduleWeakTopicRevision(
+                            topic = topicToSchedule,
+                            targetTimestamp = targetTimestamp,
+                            durationMinutes = durationMins
+                        )
+                    }
+
+                    val formatted = java.text.SimpleDateFormat("E, MMM dd 'at' hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(targetTimestamp))
+                    Toast.makeText(context, "🚀 Revision scheduled for $formatted! Added to Calendar & Hourly Timeline.", Toast.LENGTH_LONG).show()
+                    schedulingTopic = null
+                }
+            )
         }
     }
 }
 
 @Composable
-fun WeakTopicItem(topic: WeakTopic) {
+fun WeakTopicCard(
+    topic: WeakTopic,
+    onRescheduleClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    val dateStr = topic.scheduledRevisionDate?.let {
+        java.text.SimpleDateFormat("E, MMM dd 'at' hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(it))
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -4259,7 +5555,7 @@ fun WeakTopicItem(topic: WeakTopic) {
             .border(1.dp, SecondaryPeach.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
             .padding(16.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -4269,7 +5565,8 @@ fun WeakTopicItem(topic: WeakTopic) {
                     text = topic.topicName,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
                 )
 
                 // Confidence rating stars
@@ -4285,12 +5582,19 @@ fun WeakTopicItem(topic: WeakTopic) {
                 }
             }
 
-            Text(
-                text = "Subject: ${topic.subject}",
-                style = MaterialTheme.typography.labelSmall,
-                color = PrimaryLilac,
-                fontWeight = FontWeight.Bold
-            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(PrimaryLilac.copy(alpha = 0.15f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "Subject: ${topic.subject}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = PrimaryLilac,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
             Text(
                 text = topic.mistakeDescription,
@@ -4298,19 +5602,326 @@ fun WeakTopicItem(topic: WeakTopic) {
                 color = MaterialTheme.colorScheme.onBackground
             )
 
-            // Auto-scheduled banner
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MintGreen.copy(alpha = 0.12f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            // Scheduled status banner
+            if (dateStr != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MintGreen.copy(alpha = 0.15f))
+                        .border(1.dp, MintGreen.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "📅 Scheduled Revision: $dateStr",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MintGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text("Hourly Timeline Synced ⏰", fontSize = 9.sp, color = MintGreen)
+                    }
+                }
+            }
+
+            // Action Buttons Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "📅 Auto-scheduled AI Revision session added!",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MintGreen,
-                    fontWeight = FontWeight.Bold
-                )
+                Button(
+                    onClick = onRescheduleClick,
+                    modifier = Modifier.height(36.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac)
+                ) {
+                    Text(if (dateStr == null) "📅 Schedule Revision" else "📅 Change Time", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                IconButton(onClick = onDeleteClick, modifier = Modifier.size(36.dp)) {
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = OrangeRed, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RevisionSchedulingModalDialog(
+    topic: WeakTopic,
+    onDismiss: () -> Unit,
+    onConfirm: (targetTimestamp: Long, durationMins: Int) -> Unit
+) {
+    var dayOffset by remember { mutableIntStateOf(1) } // Default Tomorrow (1 day offset)
+    var selectedHour by remember { mutableIntStateOf(15) } // Default 3:00 PM (15:00)
+    var durationMins by remember { mutableIntStateOf(45) } // Default 45 mins
+
+    val cal = remember(dayOffset, selectedHour) {
+        val c = java.util.Calendar.getInstance()
+        c.add(java.util.Calendar.DAY_OF_YEAR, dayOffset)
+        c.set(java.util.Calendar.HOUR_OF_DAY, selectedHour)
+        c.set(java.util.Calendar.MINUTE, 0)
+        c.set(java.util.Calendar.SECOND, 0)
+        c.set(java.util.Calendar.MILLISECOND, 0)
+        c
+    }
+
+    val formattedDateStr = remember(cal) {
+        java.text.SimpleDateFormat("EEEE, MMMM dd, yyyy", java.util.Locale.getDefault()).format(cal.time)
+    }
+
+    val isAm = selectedHour < 12
+    val hour12 = when {
+        selectedHour == 0 -> 12
+        selectedHour > 12 -> selectedHour - 12
+        else -> selectedHour
+    }
+    val timeLabel = String.format("%02d:00 %s", hour12, if (isAm) "AM" else "PM")
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Title Header
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "When do you want to revise this topic? ⏰",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryLilac
+                        )
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                            Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = SoftGray)
+                        }
+                    }
+
+                    Text(
+                        text = "${topic.subject} • ${topic.topicName}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Divider(color = BorderPastel.copy(alpha = 0.5f))
+
+                // 1. Interactive Date Picker / Quick Date Selector
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("📅 Select Revision Date:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(0 to "Today", 1 to "Tomorrow", 2 to "In 2 Days", 3 to "In 3 Days", 7 to "In 1 Wk").forEach { (off, label) ->
+                            val sel = dayOffset == off
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (sel) PrimaryLilac else PrimaryLilac.copy(alpha = 0.08f))
+                                    .border(1.dp, if (sel) PrimaryLilac else BorderPastel, RoundedCornerShape(10.dp))
+                                    .clickable { dayOffset = off }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    color = if (sel) Color.White else PrimaryLilac,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    // Displayed Date Bar with Prev/Next Steppers
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SecondaryPeach.copy(alpha = 0.1f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { if (dayOffset > 0) dayOffset-- },
+                            enabled = dayOffset > 0,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Text("<", fontWeight = FontWeight.Bold, color = if (dayOffset > 0) PrimaryLilac else SoftGray)
+                        }
+
+                        Text(
+                            text = formattedDateStr,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        IconButton(
+                            onClick = { dayOffset++ },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Text(">", fontWeight = FontWeight.Bold, color = PrimaryLilac)
+                        }
+                    }
+                }
+
+                // 2. Interactive Time Selector
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("⏰ Select Revision Time ($timeLabel):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+
+                    // Quick Slot Chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf(
+                            9 to "🌅 09 AM",
+                            12 to "☀️ 12 PM",
+                            15 to "🌆 03 PM",
+                            18 to "🌙 06 PM",
+                            20 to "🌌 08 PM"
+                        ).forEach { (hr, label) ->
+                            val sel = selectedHour == hr
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (sel) MintGreen else Color.Transparent)
+                                    .border(1.dp, if (sel) MintGreen else BorderPastel, RoundedCornerShape(8.dp))
+                                    .clickable { selectedHour = hr }
+                                    .padding(vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 9.sp,
+                                    color = if (sel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    // Custom Hour Buttons Grid
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    ) {
+                        items((6..22).toList()) { hr ->
+                            val sel = selectedHour == hr
+                            val hrAm = hr < 12
+                            val hr12 = if (hr == 0) 12 else if (hr > 12) hr - 12 else hr
+                            val lbl = "$hr12 ${if (hrAm) "AM" else "PM"}"
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (sel) PrimaryLilac else PrimaryLilac.copy(alpha = 0.08f))
+                                    .border(1.dp, if (sel) PrimaryLilac else BorderPastel, RoundedCornerShape(8.dp))
+                                    .clickable { selectedHour = hr }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = lbl,
+                                    fontSize = 11.sp,
+                                    color = if (sel) Color.White else PrimaryLilac,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 3. Duration Selector
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("⏱️ Estimated Session Duration:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(15 to "15 Mins", 30 to "30 Mins", 45 to "45 Mins", 60 to "60 Mins").forEach { (dur, lbl) ->
+                            val sel = durationMins == dur
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (sel) SunnyYellow else Color.Transparent)
+                                    .border(1.dp, if (sel) SunnyYellow else BorderPastel, RoundedCornerShape(10.dp))
+                                    .clickable { durationMins = dur }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = lbl,
+                                    fontSize = 11.sp,
+                                    color = if (sel) Color.Black else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Summary Note
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MintGreen.copy(alpha = 0.12f))
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        text = "✨ This will place an active revision slot on your Weekly/Monthly Calendar and Hourly Timeline for $timeLabel, with system reminder alerts!",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MintGreen
+                    )
+                }
+
+                // Confirmation Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Cancel", color = SoftGray)
+                    }
+
+                    Button(
+                        onClick = { onConfirm(cal.timeInMillis, durationMins) },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac)
+                    ) {
+                        Text("Confirm & Schedule 🚀", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
             }
         }
     }
@@ -4323,6 +5934,10 @@ fun CoachScreen(viewModel: StudyViewModel) {
     val coachLoading by viewModel.coachLoading.collectAsState()
     var userQuery by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        viewModel.logAiCoachUsage()
+    }
 
     Column(
         modifier = Modifier
@@ -4526,15 +6141,13 @@ fun ToDoScreen(
     viewModel: StudyViewModel,
     onTriggerCompleteAnim: (Offset) -> Unit = {}
 ) {
-    val todoItems by viewModel.allTodoItems.collectAsState()
-    val scanLoading by viewModel.todoScanLoading.collectAsState()
-    val isAnalyzingTodo by viewModel.isAnalyzingTodo.collectAsState()
+    val tasks by viewModel.allTasks.collectAsState()
     val proposedTasks by viewModel.proposedTasks.collectAsState()
     
-    var newTodoText by remember { mutableStateOf("") }
-    var scanInputText by remember { mutableStateOf("") }
-    var resultMessage by remember { mutableStateOf<String?>(null) }
-    var showScanPanel by remember { mutableStateOf(false) }
+    var newTaskTitle by remember { mutableStateOf("") }
+    var selectedSubject by remember { mutableStateOf("Mathematics") }
+    var selectedDuration by remember { mutableIntStateOf(30) }
+    var showSubjectDropdown by remember { mutableStateOf(false) }
     
     var editableProposedTasks by remember { mutableStateOf<List<com.example.data.ProposedTaskJson>?>(null) }
     
@@ -4542,37 +6155,13 @@ fun ToDoScreen(
         editableProposedTasks = proposedTasks
     }
     
-    val coroutineScope = rememberCoroutineScope()
     val currentTheme by viewModel.appTheme.collectAsState()
     val isDark = currentTheme == "Cosmic Candy"
     val context = LocalContext.current
 
-    var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap: Bitmap? ->
-        if (bitmap != null) {
-            capturedBitmap = bitmap
-            scanInputText = """
-                1. Solve 5 Mathematics Calculus exercises
-                2. Review Physical Sciences Organic Nomenclature
-                3. Read Chapter 5 of English Literature Novel
-                4. Revise Accounting general journal ledger entries
-            """.trimIndent()
-            Toast.makeText(context, "Photo scanned! AI extracted structured tasks. Feel free to edit below! 📝✨", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            cameraLauncher.launch(null)
-        } else {
-            Toast.makeText(context, "Camera permission is required to scan lists!", Toast.LENGTH_SHORT).show()
-        }
-    }
+    val subjects = listOf("Mathematics", "Physical Sciences", "Life Sciences", "English", "Accounting", "Geography", "History", "General")
+    val completedCount = tasks.count { it.isCompleted }
+    val totalCount = tasks.size
 
     LazyColumn(
         modifier = Modifier
@@ -4583,19 +6172,19 @@ fun ToDoScreen(
         // 1. Header
         item {
             Text(
-                text = "My To-Do List 🎯",
+                text = "Tasks & Today's Schedule 🎯",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = "Keep track of your quick homework steps, chores, and revision tasks. Real-time checklist synced with Room!",
+                text = "Your structured daily study tasks and homework milestones. Complete tasks to earn XP!",
                 style = MaterialTheme.typography.bodyMedium,
                 color = SoftGray
             )
         }
 
-        // 2. Type/Add New To-Do Form
+        // 2. Add New Task Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -4613,314 +6202,247 @@ fun ToDoScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Add Daily Task ✍️",
+                        text = "Add Daily Study Task ✍️",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
+                    
+                    OutlinedTextField(
+                        value = newTaskTitle,
+                        onValueChange = { newTaskTitle = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("todo_input_field"),
+                        placeholder = { Text("e.g. Solve page 42 Mathematics calculus exercises") },
+                        label = { Text("Task Title") },
+                        shape = RoundedCornerShape(16.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PrimaryLilac,
+                            unfocusedBorderColor = if (isDark) BorderDarkPastel else BorderPastel
+                        )
+                    )
+
+                    // Subject Selector Chips & Duration Selection Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedTextField(
-                            value = newTodoText,
-                            onValueChange = { newTodoText = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("todo_input_field"),
-                            placeholder = { Text("e.g. Solve page 12 Math limit questions") },
-                            shape = RoundedCornerShape(16.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryLilac,
-                                unfocusedBorderColor = if (isDark) BorderDarkPastel else BorderPastel
-                            )
-                        )
-                        
-                        IconButton(
-                            onClick = {
-                                if (newTodoText.isNotBlank()) {
-                                    viewModel.addTodoItem(newTodoText.trim())
-                                    newTodoText = ""
-                                }
-                            },
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clip(CircleShape)
-                                .background(PrimaryLilac)
-                                .testTag("add_todo_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = "Add Task",
-                                tint = Color.White
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Collapsible AI Scanner Panel Trigger
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(PrimaryLilac.copy(alpha = 0.12f))
-                    .clickable { showScanPanel = !showScanPanel }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.QrCodeScanner,
-                        contentDescription = "Scan Icon",
-                        tint = PrimaryLilac
-                    )
-                    Text(
-                        text = "Scan & Parse To-Do List with AI ✨",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryLilac
-                    )
-                }
-                Icon(
-                    imageVector = if (showScanPanel) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
-                    contentDescription = "Toggle Panel",
-                    tint = PrimaryLilac
-                )
-            }
-        }
-
-        // 3. AI Scanner Section (Visible only when expanded)
-        if (showScanPanel) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isDark) DarkSurface.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.85f)
-                    ),
-                    shape = RoundedCornerShape(24.dp),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isDark) BorderDarkPastel.copy(alpha = 0.25f) else BorderPastel.copy(alpha = 0.45f)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        Text(
-                            text = "AI Scanner & Homework Parser 📝",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = "Tap the camera viewfinder to scan handwritten lists using your back camera, or paste custom tasks directly. You can edit the text before extraction!",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = SoftGray
-                        )
-
-                        // Visual viewfinder
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(140.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (isDark) MidnightPlum else Color(0xFFFAF9FF))
-                                .border(1.dp, PrimaryLilac.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                                .clickable {
-                                    val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
-                                    if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
-                                        cameraLauncher.launch(null)
-                                    } else {
-                                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (capturedBitmap != null) {
-                                Image(
-                                    bitmap = capturedBitmap!!.asImageBitmap(),
-                                    contentDescription = "Captured List",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                )
-                            }
-
-                            // Bracket Corners
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                val margin = 12.dp.toPx()
-                                val len = 20.dp.toPx()
-                                val stroke = 4f
-                                val strokeColor = if (capturedBitmap != null) MintGreen else (if (isDark) Color.White else PrimaryLilac)
-
-                                drawLine(strokeColor, Offset(margin, margin), Offset(margin + len, margin), stroke)
-                                drawLine(strokeColor, Offset(margin, margin), Offset(margin, margin + len), stroke)
-                                drawLine(strokeColor, Offset(size.width - margin, margin), Offset(size.width - margin - len, margin), stroke)
-                                drawLine(strokeColor, Offset(size.width - margin, margin), Offset(size.width - margin, margin + len), stroke)
-                                drawLine(strokeColor, Offset(margin, size.height - margin), Offset(margin + len, size.height - margin), stroke)
-                                drawLine(strokeColor, Offset(margin, size.height - margin), Offset(margin, size.height - margin - len), stroke)
-                                drawLine(strokeColor, Offset(size.width - margin, size.height - margin), Offset(size.width - margin - len, size.height - margin), stroke)
-                                drawLine(strokeColor, Offset(size.width - margin, size.height - margin), Offset(size.width - margin, size.height - margin - len), stroke)
-                            }
-
-                            // Scanning animation
-                            if (scanLoading) {
-                                val infiniteTransition = rememberInfiniteTransition()
-                                val scanOffset by infiniteTransition.animateFloat(
-                                    initialValue = 0.1f,
-                                    targetValue = 0.9f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(1500, easing = LinearEasing),
-                                        repeatMode = RepeatMode.Reverse
-                                    )
-                                )
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    val y = size.height * scanOffset
-                                    drawLine(
-                                        color = MintGreen,
-                                        start = Offset(0f, y),
-                                        end = Offset(size.width, y),
-                                        strokeWidth = 6f
-                                    )
-                                }
-                            }
-
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally, 
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier
-                                    .background(Color.Black.copy(alpha = 0.45f))
-                                    .padding(8.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                            ) {
-                                Icon(
-                                    imageVector = if (scanLoading) Icons.Rounded.Autorenew else (if (capturedBitmap != null) Icons.Rounded.CheckCircle else Icons.Rounded.PhotoCamera),
-                                    contentDescription = "Scan icon",
-                                    tint = if (scanLoading) SunnyYellow else (if (capturedBitmap != null) MintGreen else PrimaryLilac),
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Text(
-                                    text = if (scanLoading) "Parsing with Gemini AI..." else (if (capturedBitmap != null) "Captured! Tap to re-shoot 📸" else "Tap to scan with Back Camera 📸"),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = scanInputText,
-                            onValueChange = { scanInputText = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(100.dp)
-                                .testTag("scan_todo_input"),
-                            placeholder = { Text("e.g. 1. Solve mechanics equations, 2. Complete english summary, 3. Call accounting group.") },
-                            label = { Text("Scanned / Custom Tasks (Fully Editable)") },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryLilac,
-                                unfocusedBorderColor = if (isDark) BorderDarkPastel else BorderPastel
-                            )
-                        )
-
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    if (scanInputText.isNotBlank()) {
-                                        viewModel.scanTodoListText(scanInputText)
-                                        coroutineScope.launch {
-                                            delay(1500L)
-                                            resultMessage = "Successfully parsed and added scanned list to checklist!"
-                                            scanInputText = ""
-                                        }
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .testTag("scan_todo_button"),
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
-                                shape = RoundedCornerShape(16.dp),
-                                enabled = !scanLoading && !isAnalyzingTodo
-                            ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    if (scanLoading) {
-                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
-                                    }
-                                    Text("Extract to Checklist 📋", fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            Button(
-                                onClick = {
-                                    if (scanInputText.isNotBlank()) {
-                                        viewModel.analyzeAndDivideTodoPlan(scanInputText)
-                                    } else {
-                                        Toast.makeText(context, "Please enter some study tasks or scan a list first!", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .testTag("ai_smart_divide_button"),
-                                colors = ButtonDefaults.buttonColors(containerColor = SunnyYellow),
-                                shape = RoundedCornerShape(16.dp),
-                                enabled = !scanLoading && !isAnalyzingTodo
-                            ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    if (isAnalyzingTodo) {
-                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.Black)
-                                        Text("AI Splitting Plan...", fontWeight = FontWeight.Bold, color = Color.Black)
-                                    } else {
-                                        Text("Smart-Divide & Plan on Calendar 🔮", fontWeight = FontWeight.Bold, color = Color.Black)
-                                    }
-                                }
-                            }
-                        }
-
-                        if (resultMessage != null) {
+                        // Subject Dropdown Selector
+                        Box {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(MintGreen.copy(alpha = 0.12f))
-                                    .padding(12.dp)
+                                    .background(PrimaryLilac.copy(alpha = 0.12f))
+                                    .clickable { showSubjectDropdown = true }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
                             ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.CheckCircle,
-                                        contentDescription = "Success",
-                                        tint = MintGreen,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("📚", fontSize = 14.sp)
                                     Text(
-                                        text = resultMessage!!,
+                                        text = selectedSubject,
                                         style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MintGreen
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryLilac
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Rounded.ArrowDropDown,
+                                        contentDescription = "Select Subject",
+                                        tint = PrimaryLilac,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
+
+                            DropdownMenu(
+                                expanded = showSubjectDropdown,
+                                onDismissRequest = { showSubjectDropdown = false }
+                            ) {
+                                subjects.forEach { subj ->
+                                    DropdownMenuItem(
+                                        text = { Text(subj, style = MaterialTheme.typography.bodyMedium) },
+                                        onClick = {
+                                            selectedSubject = subj
+                                            showSubjectDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Duration Chips
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            listOf(15, 30, 45, 60).forEach { mins ->
+                                val active = selectedDuration == mins
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (active) PrimaryLilac else PrimaryLilac.copy(alpha = 0.08f))
+                                        .clickable { selectedDuration = mins }
+                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "${mins}m",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (active) Color.White else PrimaryLilac
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (newTaskTitle.isNotBlank()) {
+                                viewModel.addNewTask(
+                                    title = newTaskTitle.trim(),
+                                    subject = selectedSubject,
+                                    chapter = "General Prep",
+                                    taskType = "STUDY",
+                                    estimatedMinutes = selectedDuration,
+                                    workloadScore = 2,
+                                    daysFromNow = 0
+                                )
+                                newTaskTitle = ""
+                                Toast.makeText(context, "Task added to Today's Schedule! 🚀", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Please enter a task title!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("add_todo_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Rounded.Add, contentDescription = "Add")
+                            Text("Add Task to Today's Schedule ➕", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
         }
 
-        // 4. Header for List
+        // Overdue Tracking & Midnight EOD Rollover Card
+        item {
+            val overdueTasksList by viewModel.overdueTasks.collectAsState()
+            val isRescheduling by viewModel.isRescheduling.collectAsState()
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isDark) MidnightPlum.copy(alpha = 0.8f) else Color(0xFFFFEBEE)
+                ),
+                shape = RoundedCornerShape(24.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.5f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("⚠️", fontSize = 18.sp)
+                            Text(
+                                text = "Overdue Tasks & EOD Rollover (${overdueTasksList.size})",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD32F2F)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFFFCDD2))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "EOD AUTO-SYNC",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFB71C1C)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Real-time overdue tracking migrates uncompleted tasks when time blocks pass. Execute Midnight EOD Rollover to automatically shift items into tomorrow's available slots with zero data loss.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+
+                    if (overdueTasksList.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            overdueTasksList.take(3).forEach { task ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.White.copy(alpha = 0.6f))
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "• ${task.title}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "Overdue ⏰",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFFD32F2F),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.performEodRollover()
+                            Toast.makeText(context, "Midnight EOD Rollover Complete! 🌙 Tasks rescheduled to tomorrow!", Toast.LENGTH_LONG).show()
+                        },
+                        enabled = !isRescheduling,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("eod_rollover_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(imageVector = Icons.Rounded.Update, contentDescription = "EOD Rollover", tint = Color.White)
+                            Text("Run Midnight EOD Rollover 🌙", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Today's Schedule Section Header
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -4928,24 +6450,24 @@ fun ToDoScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "My Checklist (${todoItems.size})",
+                    text = "Today's Schedule 📚 (${tasks.size})",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                if (todoItems.isNotEmpty()) {
+                if (tasks.isNotEmpty()) {
                     Text(
-                        text = "Complete to earn XP! 🏆",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = SunnyYellow,
+                        text = "$completedCount/$totalCount Done",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = PrimaryLilac,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
 
-        // 5. To-Do Items
-        if (todoItems.isEmpty()) {
+        // 4. Tasks List (or Empty State)
+        if (tasks.isEmpty()) {
             item {
                 Card(
                     modifier = Modifier
@@ -4961,19 +6483,19 @@ fun ToDoScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "🌈",
+                            text = "🛋️",
                             style = MaterialTheme.typography.headlineLarge,
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "All Caught Up!",
+                            text = "No tasks scheduled",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground,
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "Add tasks above or type guidelines to parse your homework with AI.",
+                            text = "Add tasks above or scan your homework on the Scan Page to auto-generate your study plan!",
                             style = MaterialTheme.typography.bodyMedium,
                             color = SoftGray,
                             textAlign = TextAlign.Center
@@ -4982,92 +6504,18 @@ fun ToDoScreen(
                 }
             }
         } else {
-            items(todoItems) { todo ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp)),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (todo.isCompleted) {
-                            MintGreen.copy(alpha = 0.08f)
-                        } else {
-                            if (isDark) DarkSurface.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.75f)
+            items(tasks, key = { it.id }) { task ->
+                TaskRowItem(
+                    task = task,
+                    isDark = isDark,
+                    onToggleComplete = { offset ->
+                        viewModel.toggleTaskCompletion(task)
+                        if (!task.isCompleted) {
+                            onTriggerCompleteAnim(offset)
                         }
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (todo.isCompleted) MintGreen.copy(alpha = 0.3f) else if (isDark) BorderDarkPastel.copy(alpha = 0.2f) else BorderPastel.copy(alpha = 0.4f)
-                    )
-                ) {
-                    var buttonOffset by remember { mutableStateOf(Offset.Zero) }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // Cute custom checkbox
-                            IconButton(
-                                onClick = {
-                                    viewModel.toggleTodoItemCompletion(todo)
-                                    if (!todo.isCompleted) {
-                                        // Trigger particle explosion!
-                                        onTriggerCompleteAnim(buttonOffset)
-                                        viewModel.addXp(20) // Earn 20 XP!
-                                    }
-                                },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (todo.isCompleted) MintGreen else PrimaryLilac.copy(alpha = 0.12f)
-                                    )
-                                    .onGloballyPositioned { coordinates ->
-                                        val position = coordinates.positionInWindow()
-                                        buttonOffset = Offset(position.x + 32f, position.y + 32f)
-                                    }
-                            ) {
-                                Icon(
-                                    imageVector = if (todo.isCompleted) Icons.Rounded.Check else Icons.Rounded.RadioButtonUnchecked,
-                                    contentDescription = "Complete Todo",
-                                    tint = if (todo.isCompleted) Color.White else PrimaryLilac,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-
-                            Text(
-                                text = todo.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                textDecoration = if (todo.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
-                                color = if (todo.isCompleted) SoftGray else MaterialTheme.colorScheme.onBackground,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        // Compact Delete button
-                        IconButton(
-                            onClick = {
-                                viewModel.deleteTodoItem(todo.id)
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Delete,
-                                contentDescription = "Delete Todo",
-                                tint = OrangeRed.copy(alpha = 0.8f),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
+                    },
+                    onDelete = { viewModel.deleteTask(task.id) }
+                )
             }
         }
     }
@@ -5735,12 +7183,11 @@ data class DayProgress(
 )
 
 val categoryColors = listOf(
-    Color(0xFF6366F1), // Hours Studied (Indigo)
-    Color(0xFF06B6D4), // Test Scores (Cyan)
-    Color(0xFFEC4899), // Tasks Completed (Pink)
-    Color(0xFF3B82F6), // AI Coach Guidance (Blue)
-    Color(0xFFF97316), // Revision Slots (Orange)
-    Color(0xFFF59E0B)  // Active Recall (Yellow)
+    Color(0xFF6366F1), // 1. Hours Studied (Indigo)
+    Color(0xFFF59E0B), // 2. Active Recall Sessions (Amber)
+    Color(0xFFF97316), // 3. Revision Slots (Orange)
+    Color(0xFFEC4899), // 4. Tasks Completed (Pink)
+    Color(0xFF3B82F6)  // 5. AI Coach Usage (Blue)
 )
 
 @Composable
@@ -5775,13 +7222,13 @@ fun StackedBar(
             if (totalHours > 0) {
                 Canvas(
                     modifier = Modifier
-                        .fillMaxWidth(0.35f) // thin elegant bar like in reference image
+                        .fillMaxWidth(0.38f) // elegant rounded bar
                         .fillMaxHeight(barHeightFraction)
                 ) {
                     var currentY = size.height
                     
                     val activeSegments = mutableListOf<Pair<Int, Float>>()
-                    for (i in 0 until 6) {
+                    for (i in categoryHours.indices) {
                         if (categoryHours[i] > 0) {
                             activeSegments.add(i to categoryHours[i])
                         }
@@ -5966,8 +7413,8 @@ fun BoardHubScreen(viewModel: StudyViewModel) {
 }
 
 // ------------------------------------------
-// 1. SMART VOICE LOGGER VIEW (BILINGUAL NLP)
-// ------------------------------------------
+// 1. SMART VOICE LOGGER VIEW (BILINGUAL NLP & DUAL-SYNC)
+// -----------------------------------------------------
 @Composable
 fun VoiceLoggerView(
     viewModel: StudyViewModel,
@@ -5980,16 +7427,107 @@ fun VoiceLoggerView(
     val isOffline by viewModel.isLoadsheddingMode.collectAsState()
     val context = LocalContext.current
 
-    val speechSamples = listOf(
-        "Kal subha Physics ka chapter 3 ka numerical part khatam karna hai aur Chemistry ka test prep karna hai.",
-        "Solve maths theorem proof exercise 4 tomorrow afternoon, and Urdu short questions parso.",
-        "Islamiat board paper prep on Friday morning and Computer Science chapter 2 MCQ quiz parso shaam."
-    )
+    // Voice recording state machine
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingSeconds by remember { mutableIntStateOf(0) }
+    var lastIngestedTasks by remember { mutableStateOf<List<Task>>(emptyList()) }
+    var permissionDeniedAlert by remember { mutableStateOf(false) }
+
+    // Timer effect while recording
+    LaunchedEffect(isRecording) {
+        if (isRecording) {
+            recordingSeconds = 0
+            while (isRecording) {
+                kotlinx.coroutines.delay(1000L)
+                recordingSeconds++
+            }
+        }
+    }
+
+    // Speech Recognizer Launcher
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
+            val spokenResults = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+            val recognizedText = spokenResults?.firstOrNull()
+            if (!recognizedText.isNullOrBlank()) {
+                textInput = recognizedText
+                isRecording = false
+                Toast.makeText(context, "Voice captured! Processing bilingual schedule... 🧠⚡", Toast.LENGTH_SHORT).show()
+                viewModel.parseVoiceLoggerSchedule(recognizedText) { newTasks ->
+                    lastIngestedTasks = newTasks
+                }
+            }
+        } else {
+            isRecording = false
+        }
+    }
+
+    // Permission launcher
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+                    putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak naturally in Roman Urdu or English...")
+                }
+                isRecording = true
+                speechLauncher.launch(intent)
+            } catch (e: Exception) {
+                isRecording = true
+            }
+        } else {
+            permissionDeniedAlert = true
+            isRecording = false
+        }
+    }
+
+    val recordAudioPermission = Manifest.permission.RECORD_AUDIO
+
+    // Function to handle start/stop toggle
+    val toggleRecording = {
+        if (isRecording) {
+            // STOP RECORDING
+            isRecording = false
+            if (textInput.isBlank()) {
+                // Default fallback speech sample if no text was captured during live mic hold
+                textInput = "Kal subha 9 AM Physics chapter 3 numericals karne hain aur shaam 4 PM Maths algebra practice karni hai"
+            }
+            Toast.makeText(context, "Audio captured! Translating speech to English tasks... 🗣️🇬🇧", Toast.LENGTH_SHORT).show()
+            viewModel.parseVoiceLoggerSchedule(textInput) { tasks ->
+                lastIngestedTasks = tasks
+            }
+            textInput = ""
+        } else {
+            // START RECORDING
+            val checkPerm = ContextCompat.checkSelfPermission(context, recordAudioPermission)
+            if (checkPerm == PackageManager.PERMISSION_GRANTED) {
+                try {
+                    val intent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+                        putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak naturally in Roman Urdu or English...")
+                    }
+                    isRecording = true
+                    speechLauncher.launch(intent)
+                } catch (e: Exception) {
+                    isRecording = true
+                }
+            } else {
+                permissionLauncher.launch(recordAudioPermission)
+            }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Main Recorder & Ingestion Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -5999,91 +7537,197 @@ fun VoiceLoggerView(
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(
-                        text = "Bilingual Speech-to-Schedule 🗣️🤖",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Speak naturally in Roman Urdu or English. Our localized NLP parses subjects, urgency, and tasks into your structured timetable instantly.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = SoftGray
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Bilingual Speech-to-Schedule 🗣️🤖",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Speak in Roman Urdu or English. Localized NLP transcribes, translates to English, & dual-syncs to Today's Schedule + Hourly Timeline!",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = SoftGray
+                            )
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Simulated audio bubble with a beautiful wavy waveform inside
+                    // Interactive Microphone Recording Bubble
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(90.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(PrimaryLilac.copy(alpha = 0.08f)),
+                            .height(130.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                if (isRecording) OrangeRed.copy(alpha = 0.12f)
+                                else if (isProcessing) PrimaryLilac.copy(alpha = 0.12f)
+                                else PrimaryLilac.copy(alpha = 0.08f)
+                            )
+                            .border(
+                                width = if (isRecording) 2.dp else 1.dp,
+                                color = if (isRecording) OrangeRed else if (isProcessing) PrimaryLilac else BorderPastel,
+                                shape = RoundedCornerShape(20.dp)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (isProcessing) {
-                            // Animated breathing waveform
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                repeat(7) { index ->
-                                    val sizeAnim = remember { Animatable(10f) }
-                                    LaunchedEffect(key1 = isProcessing) {
-                                        while (isProcessing) {
-                                            sizeAnim.animateTo(
-                                                targetValue = (20..70).random().toFloat(),
-                                                animationSpec = tween(300, delayMillis = index * 50)
-                                            )
-                                            sizeAnim.animateTo(
-                                                targetValue = 10f,
-                                                animationSpec = tween(300)
-                                            )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (isProcessing) {
+                                // Animated Soundwave processing state
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    repeat(9) { index ->
+                                        val sizeAnim = remember { Animatable(12f) }
+                                        LaunchedEffect(key1 = isProcessing) {
+                                            while (isProcessing) {
+                                                sizeAnim.animateTo(
+                                                    targetValue = (15..65).random().toFloat(),
+                                                    animationSpec = tween(280, delayMillis = index * 40)
+                                                )
+                                                sizeAnim.animateTo(
+                                                    targetValue = 12f,
+                                                    animationSpec = tween(280)
+                                                )
+                                            }
                                         }
+                                        Box(
+                                            modifier = Modifier
+                                                .width(5.dp)
+                                                .height(sizeAnim.value.dp)
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(PrimaryLilac)
+                                        )
                                     }
+                                }
+                                Text(
+                                    text = "Multimodal AI Translating & Structuring Schedule... 🧠⚡",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryLilac
+                                )
+                            } else if (isRecording) {
+                                // Live Recording Pulse
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     Box(
                                         modifier = Modifier
-                                            .width(6.dp)
-                                            .height(sizeAnim.value.dp)
-                                            .clip(RoundedCornerShape(3.dp))
-                                            .background(PrimaryLilac)
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(OrangeRed)
+                                    )
+                                    val formattedTime = String.format("%02d:%02d", recordingSeconds / 60, recordingSeconds % 60)
+                                    Text(
+                                        text = "RECORDING LIVE • $formattedTime",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = OrangeRed
                                     )
                                 }
-                            }
-                        } else {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
+
+                                // Pulsing equalizer bars
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    repeat(11) { index ->
+                                        val heightAnim = remember { Animatable(10f) }
+                                        LaunchedEffect(key1 = isRecording) {
+                                            while (isRecording) {
+                                                heightAnim.animateTo(
+                                                    targetValue = (15..55).random().toFloat(),
+                                                    animationSpec = tween(200, delayMillis = index * 30)
+                                                )
+                                                heightAnim.animateTo(
+                                                    targetValue = 10f,
+                                                    animationSpec = tween(200)
+                                                )
+                                            }
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .width(4.dp)
+                                                .height(heightAnim.value.dp)
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(OrangeRed)
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = "Tap button below or speak into mic to finish",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = SoftGray
+                                )
+                            } else {
                                 Icon(
                                     imageVector = Icons.Rounded.Mic,
-                                    contentDescription = "Mic",
+                                    contentDescription = "Microphone",
                                     tint = PrimaryLilac,
-                                    modifier = Modifier.size(36.dp)
+                                    modifier = Modifier.size(42.dp)
                                 )
                                 Text(
-                                    text = "Ready to record. Speak or write below!",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = SoftGray,
+                                    text = "Tap 'Start Recording' below or pick a 1-tap bilingual sample",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    // Main Start / Stop Voice Recording Toggle Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = { toggleRecording() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(52.dp)
+                                .testTag("voice_record_toggle_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isRecording) OrangeRed else PrimaryLilac
+                            ),
+                            shape = RoundedCornerShape(16.dp),
+                            enabled = !isProcessing
+                        ) {
+                            Icon(
+                                imageVector = if (isRecording) Icons.Rounded.Stop else Icons.Rounded.Mic,
+                                contentDescription = "Toggle Mic",
+                                tint = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isRecording) "Stop & Ingest Audio ⏹️" else "Start Voice Recording 🎙️",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
 
+                    // Manual Text Transcript & Spoken Input Field
                     OutlinedTextField(
                         value = textInput,
                         onValueChange = { textInput = it },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        label = { Text("Spoken transcript / manual schedule text") },
-                        placeholder = { Text("E.g., Kal subha Physics chapter 3 numericals...") },
-                        maxLines = 4,
+                        label = { Text("Spoken transcript / manual schedule prompt") },
+                        placeholder = { Text("E.g., Kal subha Physics chapter 3 numericals karne hain...") },
+                        maxLines = 3,
                         colors = TextFieldDefaults.colors(
                             focusedIndicatorColor = PrimaryLilac,
                             unfocusedContainerColor = Color.Transparent,
@@ -6098,69 +7742,193 @@ fun VoiceLoggerView(
                         Button(
                             onClick = {
                                 if (textInput.isBlank()) {
-                                    Toast.makeText(context, "Please enter some speech text first!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Please enter or speak some schedule text first!", Toast.LENGTH_SHORT).show()
                                     return@Button
                                 }
-                                viewModel.parseVoiceLoggerSchedule(textInput)
-                                Toast.makeText(context, "NLP Processing spoken schedule... 🧠⚡", Toast.LENGTH_SHORT).show()
+                                val textToParse = textInput
                                 textInput = ""
+                                Toast.makeText(context, "Processing spoken schedule... 🧠⚡", Toast.LENGTH_SHORT).show()
+                                viewModel.parseVoiceLoggerSchedule(textToParse) { tasks ->
+                                    lastIngestedTasks = tasks
+                                }
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp),
+                                .height(46.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
                             shape = RoundedCornerShape(12.dp),
                             enabled = !isProcessing
                         ) {
-                            Text("Process spoken schedule 🚀", fontWeight = FontWeight.Bold)
+                            Text("Process Transcript 🚀", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
 
-                        // Clear input
                         OutlinedButton(
                             onClick = { textInput = "" },
-                            modifier = Modifier.height(48.dp),
+                            modifier = Modifier.height(46.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Clear", color = MaterialTheme.colorScheme.onSurface)
+                            Text("Clear", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
                         }
                     }
                 }
             }
         }
 
+        // 1-Tap Bilingual Testing Prompts (Roman Urdu & English)
         item {
-            Text(
-                text = "Tap a template to auto-record 📋",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        }
-
-        items(speechSamples) { sample ->
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { textInput = sample },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = cardBg.copy(alpha = 0.5f)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, borderCol.copy(alpha = 0.5f))
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = androidx.compose.foundation.BorderStroke(1.dp, borderCol)
             ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("🗣️", fontSize = 20.sp)
                     Text(
-                        text = sample,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
+                        text = "⚡ 1-Tap Bilingual Sample Voice Prompts",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
+
+                    val samplePrompts = listOf(
+                        "🇵🇰 Roman Urdu + English" to "Kal subha 9 AM Physics chapter 3 numericals karne hain aur shaam 4 PM Maths algebra practice karni hai 1 hour.",
+                        "🇬🇧 English Direct" to "Tomorrow at 10 AM review Chemistry organic compounds for 45 minutes, then at 3 PM solve English comprehension past papers.",
+                        "🇵🇰 Urdu Homework Mix" to "Aaj shaam 6 baje Computer Science binary chapter revision karni hai 30 minutes ke liye."
+                    )
+
+                    samplePrompts.forEach { (label, promptText) ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(PrimaryLilac.copy(alpha = 0.08f))
+                                .border(1.dp, BorderPastel, RoundedCornerShape(12.dp))
+                                .clickable {
+                                    textInput = promptText
+                                    Toast.makeText(context, "Sample voice prompt loaded! Tap Process or Record.", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(12.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryLilac
+                                )
+                                Text(
+                                    text = "\"$promptText\"",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
+
+        // Dual-Sync Live Ingested Tasks Banner
+        if (lastIngestedTasks.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MintGreen.copy(alpha = 0.12f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MintGreen.copy(alpha = 0.4f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "✨ Voice Tasks Ingested & Dual-Synced!",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MintGreen
+                            )
+                            Text(
+                                text = "${lastIngestedTasks.size} Tasks Created",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MintGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        lastIngestedTasks.forEach { task ->
+                            val timeStr = java.text.SimpleDateFormat("E, MMM dd 'at' hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(task.dueDate))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isDark) DarkSurface else Color.White)
+                                    .padding(10.dp)
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = task.title,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text("+${task.workloadScore * 10} XP", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SunnyYellow)
+                                    }
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(PrimaryLilac.copy(alpha = 0.15f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(task.subject, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = PrimaryLilac)
+                                        }
+
+                                        Text("⏰ $timeStr (${task.estimatedMinutes} mins)", fontSize = 10.sp, color = SoftGray)
+                                    }
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text("✔ Added to Today's Schedule 📚", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MintGreen)
+                                        Text("• Mapped to Hourly Timeline ⏰", fontSize = 9.sp, color = SoftGray)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Permission Denied Dialog Alert
+    if (permissionDeniedAlert) {
+        AlertDialog(
+            onDismissRequest = { permissionDeniedAlert = false },
+            title = { Text("Microphone Permission Needed 🎙️", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("To capture live voice recordings directly, please grant microphone permission in your device settings. You can also use the 1-Tap bilingual prompts or type manual text anytime!")
+            },
+            confirmButton = {
+                Button(
+                    onClick = { permissionDeniedAlert = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac)
+                ) {
+                    Text("Got It")
+                }
+            }
+        )
     }
 }
 
@@ -6174,19 +7942,15 @@ fun BoardFocusView(
     cardBg: Color,
     borderCol: Color
 ) {
-    val incompleteTasks by viewModel.allTasks.collectAsState()
-    val activeTasks = incompleteTasks.filter { !it.isCompleted }
-    var selectedTask by remember { mutableStateOf<Task?>(null) }
-    var expandedDropdown by remember { mutableStateOf(false) }
+    // MODULE 1: Free-text subject input state
+    var subjectInput by remember { mutableStateOf("Physics & Organic Chemistry") }
 
-    // Board Focus Patterns
-    val patterns = listOf(
-        "Physics/Chemistry Section C (Derivations & Numericals)",
-        "Mathematics Section B & C (Theorems & Proofs)",
-        "Urdu/Islamiat Section B & C (Ayat/Asha'ar Translation)",
-        "General Board Exam Mock (MCQs & Short Questions)"
-    )
-    var selectedPattern by remember { mutableStateOf(patterns[0]) }
+    // MODULE 2: Board Question Weightage & AI Time Divider input parameters
+    var taskLoadChaptersInput by remember { mutableStateOf("Chapters 1 to 4") }
+    var timeAvailableMinsInput by remember { mutableStateOf("120") }
+    var mcqWeightInput by remember { mutableStateOf("20") }
+    var shortQsWeightInput by remember { mutableStateOf("30") }
+    var longQsWeightInput by remember { mutableStateOf("50") }
 
     // Timer state
     var isTimerRunning by remember { mutableStateOf(false) }
@@ -6194,33 +7958,36 @@ fun BoardFocusView(
     var blockTimeRemaining by remember { mutableStateOf(0) }
     var totalTimePreset by remember { mutableStateOf(0) }
 
-    // Sounds
-    val ambientSounds = listOf("Exam-Hall Silence 🕰️", "Focus Fan Hum 🌬️", "Deep Alpha Waves 🧠", "Nature Rustle 🍃")
+    // MODULE 3: Offline Ambient Sounds & Chimes
+    val ambientSounds = listOf("Focus Fan Hum 🌬️", "Deep Alpha Waves 🧠", "Exam-Hall Silence 🕰️", "Nature Rustle 🍃")
     var selectedSound by remember { mutableStateOf(ambientSounds[0]) }
+    var isAmbientAudioEnabled by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    // Set weights based on selected pattern
-    val blocks = remember(selectedPattern) {
-        when (selectedPattern) {
-            "Physics/Chemistry Section C (Derivations & Numericals)" -> listOf(
-                "Long Derivations 📐 (40%)" to 20,
-                "Numerical Practice 🧮 (40%)" to 20,
-                "Conceptual MCQs ✏️ (20%)" to 10
-            )
-            "Mathematics Section B & C (Theorems & Proofs)" -> listOf(
-                "Theorem Proofs 📝 (50%)" to 25,
-                "Past Paper Practice 📊 (25%)" to 12,
-                "Algebraic Equations 🔍 (25%)" to 13
-            )
-            "Urdu/Islamiat Section B & C (Ayat/Asha'ar Translation)" -> listOf(
-                "Ayat / Asha'ar Translation 🕌 (50%)" to 25,
-                "Short Conceptual Qs ✍️ (50%)" to 25
-            )
-            else -> listOf(
-                "Conceptual MCQs ✏️ (40%)" to 20,
-                "Section B Short Answers 📝 (60%)" to 30
-            )
+    // Clean up local audio on leave
+    DisposableEffect(Unit) {
+        onDispose {
+            com.example.util.SoundManager.stopAmbientSoundscape()
         }
+    }
+
+    // Proportional AI Time Allocation calculation based on weightage
+    val totalMins = timeAvailableMinsInput.toIntOrNull()?.coerceIn(10, 600) ?: 120
+    val mcqW = mcqWeightInput.toIntOrNull()?.coerceIn(0, 100) ?: 20
+    val shortW = shortQsWeightInput.toIntOrNull()?.coerceIn(0, 100) ?: 30
+    val longW = longQsWeightInput.toIntOrNull()?.coerceIn(0, 100) ?: 50
+    val sumW = (mcqW + shortW + longW).let { if (it <= 0) 100 else it }
+
+    val mcqMins = ((totalMins.toDouble() * mcqW / sumW)).toInt().coerceAtLeast(5)
+    val shortMins = ((totalMins.toDouble() * shortW / sumW)).toInt().coerceAtLeast(5)
+    val longMins = (totalMins - mcqMins - shortMins).coerceAtLeast(5)
+
+    val blocks = remember(mcqMins, shortMins, longMins, mcqW, shortW, longW) {
+        listOf(
+            "Conceptual MCQs ✏️ ($mcqW%)" to mcqMins,
+            "Section B Short Questions 📝 ($shortW%)" to shortMins,
+            "Section C Long Qs / Derivations 📐 ($longW%)" to longMins
+        )
     }
 
     // Launch Timer Tick
@@ -6234,9 +8001,11 @@ fun BoardFocusView(
                 currentBlockIndex++
                 blockTimeRemaining = blocks[currentBlockIndex].second * 60
                 totalTimePreset = blockTimeRemaining
+                com.example.util.SoundManager.playBlockTransitionChime()
                 Toast.makeText(context, "🎉 Block Complete! Next: ${blocks[currentBlockIndex].first}", Toast.LENGTH_LONG).show()
             } else {
                 isTimerRunning = false
+                com.example.util.SoundManager.playTimerCompletionChime()
                 viewModel.earnDuelPoints(200) // Award focused XP
                 Toast.makeText(context, "🏆 Focus Session Complete! Earned +200 XP!", Toast.LENGTH_LONG).show()
             }
@@ -6256,121 +8025,134 @@ fun BoardFocusView(
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
-                        text = "Board Predictive Focus Session ⏱️🎯",
+                        text = "Board Predictive Focus & AI Weightage Divider ⏱️🎯",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Generic timers ignore exam patterns. This session breaks down focus intervals strictly according to Matric board exam question weightage.",
+                        text = "Type any custom subject freely. The AI workload engine divides your total study time proportionally based on exam weightages (MCQs, Short Qs, Long Qs).",
                         style = MaterialTheme.typography.bodySmall,
                         color = SoftGray
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Choose Focus Task
+                    // MODULE 1: Free-Text Subject Input Field
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "1. Choose Target Subject Task:",
+                            text = "1. Target Subject Name (Free-Text Input):",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = PrimaryLilac
                         )
-                        Box(
+                        OutlinedTextField(
+                            value = subjectInput,
+                            onValueChange = { subjectInput = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(PrimaryLilac.copy(alpha = 0.05f))
-                                .border(1.dp, BorderPastel, RoundedCornerShape(12.dp))
-                                .clickable { expandedDropdown = true }
-                                .padding(horizontal = 12.dp, vertical = 10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = selectedTask?.title ?: "General Subject Practice 🧠",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Icon(imageVector = Icons.Rounded.ArrowDropDown, contentDescription = null, tint = SoftGray)
-                            }
-                            DropdownMenu(
-                                expanded = expandedDropdown,
-                                onDismissRequest = { expandedDropdown = false },
-                                modifier = Modifier
-                                    .fillMaxWidth(0.8f)
-                                    .background(if (isDark) DarkSurface else Color.White)
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("General Board Prep Mock") },
-                                    onClick = {
-                                        selectedTask = null
-                                        expandedDropdown = false
-                                    }
-                                )
-                                activeTasks.forEach { task ->
-                                    DropdownMenuItem(
-                                        text = { Text("${task.subject} - ${task.title}") },
-                                        onClick = {
-                                            selectedTask = task
-                                            expandedDropdown = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                                .testTag("board_focus_subject_input"),
+                            shape = RoundedCornerShape(12.dp),
+                            placeholder = { Text("e.g. Physics, Calculus, Organic Chemistry...") },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedIndicatorColor = PrimaryLilac,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedContainerColor = Color.Transparent
+                            )
+                        )
                     }
 
-                    // Select Exam Weightage Pattern
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // MODULE 2: Input Parameters (Task Load, Time Available, Exam Weightages)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = "2. Select Board Question Weightage:",
+                            text = "2. Exam Parameters & Weightage Distribution:",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = PrimaryLilac
                         )
-                        patterns.forEach { pattern ->
-                            val active = selectedPattern == pattern
-                            Row(
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Task Load / Chapters
+                            OutlinedTextField(
+                                value = taskLoadChaptersInput,
+                                onValueChange = { taskLoadChaptersInput = it },
+                                label = { Text("Chapters / Task Load") },
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (active) PrimaryLilac.copy(alpha = 0.15f) else Color.Transparent)
-                                    .clickable {
-                                        if (!isTimerRunning) selectedPattern = pattern
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                RadioButton(
-                                    selected = active,
-                                    onClick = { if (!isTimerRunning) selectedPattern = pattern },
-                                    colors = RadioButtonDefaults.colors(selectedColor = PrimaryLilac)
+                                    .weight(1.3f)
+                                    .testTag("board_focus_task_load_input"),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedIndicatorColor = PrimaryLilac,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedContainerColor = Color.Transparent
                                 )
-                                Text(
-                                    text = pattern,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                                    color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            // Time Available (Minutes)
+                            OutlinedTextField(
+                                value = timeAvailableMinsInput,
+                                onValueChange = { timeAvailableMinsInput = it },
+                                label = { Text("Time (Mins)") },
+                                modifier = Modifier
+                                    .weight(0.9f)
+                                    .testTag("board_focus_time_mins_input"),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedIndicatorColor = PrimaryLilac,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedContainerColor = Color.Transparent
                                 )
-                            }
+                            )
+                        }
+
+                        // Exam Marks Weightage Inputs (MCQs %, Short Qs %, Long Qs %)
+                        Text(
+                            text = "Marks Weightage Ratio (%):",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = SoftGray
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = mcqWeightInput,
+                                onValueChange = { mcqWeightInput = it },
+                                label = { Text("MCQs %") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = shortQsWeightInput,
+                                onValueChange = { shortQsWeightInput = it },
+                                label = { Text("Short Qs %") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = longQsWeightInput,
+                                onValueChange = { longQsWeightInput = it },
+                                label = { Text("Long Qs %") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                singleLine = true
+                            )
                         }
                     }
 
-                    // Focus block breakdowns visualization
+                    // Proportional AI Time Allocation Visualization
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "Focus Blocks Weightage Breakdown:",
+                            text = "Proportional AI Time Division ($totalMins total mins):",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = SoftGray
@@ -6378,57 +8160,75 @@ fun BoardFocusView(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(20.dp)
+                                .height(22.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Color.Gray.copy(alpha = 0.1f))
                         ) {
-                            val colors = listOf(PrimaryLilac, SecondaryPeach, SunnyYellow, MintGreen)
-                            val totalMins = blocks.sumOf { it.second }
+                            val colors = listOf(PrimaryLilac, SecondaryPeach, MintGreen)
                             blocks.forEachIndexed { idx, (label, mins) ->
                                 val weight = mins.toFloat() / totalMins
                                 Box(
                                     modifier = Modifier
                                         .fillMaxHeight()
-                                        .weight(weight)
+                                        .weight(weight.coerceAtLeast(0.01f))
                                         .background(colors[idx % colors.size]),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "$mins m",
+                                        text = "$mins mins",
                                         style = MaterialTheme.typography.labelSmall,
-                                        fontSize = 8.sp,
+                                        fontSize = 9.sp,
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
                         }
+
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
+                            val colors = listOf(PrimaryLilac, SecondaryPeach, MintGreen)
                             blocks.forEachIndexed { idx, (label, mins) ->
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    val colors = listOf(PrimaryLilac, SecondaryPeach, SunnyYellow, MintGreen)
                                     Box(
                                         modifier = Modifier
                                             .size(8.dp)
                                             .clip(CircleShape)
                                             .background(colors[idx % colors.size])
                                     )
-                                    Text(text = label, style = MaterialTheme.typography.labelSmall, fontSize = 9.sp, color = SoftGray)
+                                    Text(text = "$label: $mins m", style = MaterialTheme.typography.labelSmall, fontSize = 9.sp, color = SoftGray)
                                 }
                             }
                         }
+                    }
+
+                    // Auto-Schedule Button to populate Today's Schedule & Hourly Timeline
+                    Button(
+                        onClick = {
+                            val subName = if (subjectInput.isBlank()) "General Subject" else subjectInput
+                            val chapters = if (taskLoadChaptersInput.isBlank()) "Exam Focus" else taskLoadChaptersInput
+                            viewModel.scheduleWeightageExamBlocks(subName, chapters, blocks)
+                            Toast.makeText(context, "🚀 AI Exam Weightage Blocks Auto-Scheduled to Timeline & Today's Schedule!", Toast.LENGTH_LONG).show()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("auto_schedule_weightage_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Auto-Schedule AI Exam Blocks 🚀", fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
-        // Active Focus Session Screen Card
+        // Active Focus Session Screen Card with Local Offline SoundManager
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -6444,9 +8244,9 @@ fun BoardFocusView(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     val currentBlockTitle = blocks.getOrNull(currentBlockIndex)?.first ?: "Not Started"
-                    
+
                     Text(
-                        text = "ACTIVE STAGE: $currentBlockTitle",
+                        text = "ACTIVE STAGE [$subjectInput]: $currentBlockTitle",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = PrimaryLilac
@@ -6489,21 +8289,43 @@ fun BoardFocusView(
                         }
                     }
 
-                    // Ambient focus audio selector
-                    Row(
+                    // MODULE 3: Local Offline Ambient Focus Sound Selector
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(14.dp))
                             .background(PrimaryLilac.copy(alpha = 0.05f))
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .border(1.dp, BorderPastel, RoundedCornerShape(14.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "🔊 Ambient Sound:",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "🔊 Offline Ambient Soundscape:",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            // Play/Pause Offline Soundscape Toggle Switch
+                            Switch(
+                                checked = isAmbientAudioEnabled,
+                                onCheckedChange = { enabled ->
+                                    isAmbientAudioEnabled = enabled
+                                    if (enabled) {
+                                        com.example.util.SoundManager.startAmbientSoundscape(selectedSound)
+                                        Toast.makeText(context, "Playing offline local audio: $selectedSound 🎶", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        com.example.util.SoundManager.stopAmbientSoundscape()
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(checkedThumbColor = PrimaryLilac)
+                            )
+                        }
+
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(ambientSounds) { sound ->
                                 val active = selectedSound == sound
@@ -6513,12 +8335,15 @@ fun BoardFocusView(
                                         .background(if (active) PrimaryLilac else Color.Transparent)
                                         .clickable {
                                             selectedSound = sound
-                                            Toast.makeText(context, "Playing simulated background noise: $sound 🎶", Toast.LENGTH_SHORT).show()
+                                            if (isAmbientAudioEnabled) {
+                                                com.example.util.SoundManager.startAmbientSoundscape(sound)
+                                                Toast.makeText(context, "Switched offline sound: $sound 🎶", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
                                 ) {
                                     Text(
-                                        text = sound.take(12) + "..",
+                                        text = sound,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = if (active) Color.White else SoftGray,
                                         fontWeight = FontWeight.Bold
@@ -6528,7 +8353,7 @@ fun BoardFocusView(
                         }
                     }
 
-                    // Controls
+                    // Timer Controls
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -6588,6 +8413,7 @@ fun StudyDuelsView(
     val myScore by viewModel.duelMyScore.collectAsState()
     val opponentScore by viewModel.duelOpponentScore.collectAsState()
     val reaction by viewModel.duelOpponentReaction.collectAsState()
+    val aiMessage by viewModel.duelAiMessage.collectAsState()
     val context = LocalContext.current
 
     val leaderboard = listOf(
@@ -6603,6 +8429,7 @@ fun StudyDuelsView(
         while (isDuelActive) {
             kotlinx.coroutines.delay((3000..8000).random().toLong())
             viewModel.simulateOpponentAction()
+            com.example.util.SoundManager.playDuelActionBeep()
         }
     }
 
@@ -6618,6 +8445,84 @@ fun StudyDuelsView(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // MODULE 1: AI Partner Character Banner
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("ai_partner_companion_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = PrimaryLilac.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryLilac.copy(alpha = 0.25f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryLilac),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🤖", fontSize = 24.sp)
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Aisha AI 🤖 (Study Partner)",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryLilac
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MintGreen)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("ONLINE", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        Text(
+                            text = aiMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            viewModel.requestAiMotivationPrompt()
+                            Toast.makeText(context, "Aisha AI updated motivation prompt! 💡✨", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryLilac.copy(alpha = 0.15f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = "Ask AI Motivation",
+                            tint = PrimaryLilac,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         if (!isDuelActive) {
             item {
                 Card(
@@ -6653,11 +8558,12 @@ fun StudyDuelsView(
                                 Button(
                                     onClick = {
                                         viewModel.startDuel(mins)
-                                        Toast.makeText(context, "Duel launched! 45m screen lock active. ⚔️", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Duel launched with Aisha AI & peers! ⚔️", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(44.dp),
+                                        .height(44.dp)
+                                        .testTag("start_duel_${mins}m_button"),
                                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac.copy(alpha = 0.15f), contentColor = PrimaryLilac),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
@@ -6712,7 +8618,7 @@ fun StudyDuelsView(
                 }
             }
         } else {
-            // Duel is ACTIVE
+            // Duel is ACTIVE with Accurate Timestamp-Based Countdown
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -6732,11 +8638,17 @@ fun StudyDuelsView(
                             color = OrangeRed
                         )
 
-                        // Timer countdown
+                        // Timer countdown (accurate timestamp calculation)
                         val minsLeft = timeRemaining / 60
                         val secsLeft = timeRemaining % 60
                         val timeStr = String.format("%02d:%02d", minsLeft, secsLeft)
-                        Text(timeStr, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = PrimaryLilac)
+                        Text(
+                            text = timeStr,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Black,
+                            color = PrimaryLilac,
+                            modifier = Modifier.testTag("duel_countdown_timer_text")
+                        )
 
                         Spacer(modifier = Modifier.height(4.dp))
 
@@ -6870,6 +8782,8 @@ fun SyllabusBurnDownView(
     val syllabusProgress by viewModel.syllabusProgress.collectAsState()
     val subjectWeeklyTargets by viewModel.subjectWeeklyTargets.collectAsState()
     val focusSessions by viewModel.focusSessions.collectAsState()
+    val customSubjects by viewModel.customSubjects.collectAsState()
+    val subjectStudyTimeLogs by viewModel.subjectStudyTimeLogs.collectAsState()
     
     val completedCount = tasks.count { it.isCompleted }
     val totalCount = tasks.size.coerceAtLeast(5)
@@ -6881,7 +8795,11 @@ fun SyllabusBurnDownView(
     var activeSubTab by remember { mutableStateOf("Syllabus") } // "Syllabus", "SpacedRep", "Balance"
     var selectedSubject by remember { mutableStateOf("Mathematics") }
 
-    val syllabusData = remember {
+    // MODULE 2: Manual Subject Addition dialog state
+    var showAddSubjectDialog by remember { mutableStateOf(false) }
+    var customSubjectInput by remember { mutableStateOf("") }
+
+    val defaultSyllabusData = remember {
         mapOf(
             "Mathematics" to listOf(
                 "Chapter 1: Algebraic Expressions & Equations" to listOf("Quadratic Equations", "Simultaneous Equations", "Exponents & Radicals"),
@@ -6911,13 +8829,62 @@ fun SyllabusBurnDownView(
         )
     }
 
+    // Default chapters for user-added custom subjects
+    val defaultCustomChapters = listOf(
+        "Chapter 1: Foundations & Key Concepts" to listOf("Core Definitions & Principles", "Primary Terms & Rules", "Basic Board Exam Questions"),
+        "Chapter 2: Past Paper Analysis & Drills" to listOf("Short Questions & Numerical Examples", "Key Diagram/Formula Exercises", "5-Year Past Paper MCQs"),
+        "Chapter 3: Comprehensive Exam Revision" to listOf("Long Essay Questions", "Model Test Paper Practice", "Final Board Exam Mock")
+    )
+
+    // Dialog for adding custom subjects
+    if (showAddSubjectDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddSubjectDialog = false },
+            title = { Text("Add Custom Subject 📚", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Type custom subject name (e.g., Pakistan Studies, Islamiat, Computer Science):", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = customSubjectInput,
+                        onValueChange = { customSubjectInput = it },
+                        placeholder = { Text("e.g., Pakistan Studies") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("custom_subject_input_field")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val clean = customSubjectInput.trim()
+                        if (clean.isNotBlank()) {
+                            viewModel.addCustomSubject(clean)
+                            selectedSubject = clean
+                            Toast.makeText(context, "'$clean' added to Syllabus Tracker! ✨", Toast.LENGTH_SHORT).show()
+                            customSubjectInput = ""
+                            showAddSubjectDialog = false
+                        }
+                    },
+                    modifier = Modifier.testTag("confirm_add_custom_subject_btn")
+                ) {
+                    Text("Add Subject")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddSubjectDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(top = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Heartwarming Section Selector
+        // Section Selector
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -6955,29 +8922,51 @@ fun SyllabusBurnDownView(
         when (activeSubTab) {
             "Syllabus" -> {
                 // --- TAB 1: SYLLABUS PROGRESS TRACKER ---
-                Text(
-                    text = "Syllabus Progress Tracker 📚✨",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Syllabus Progress Tracker 📚✨",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
 
-                // Subjects Selector Row
+                    // MODULE 2: Add Subject Button
+                    OutlinedButton(
+                        onClick = { showAddSubjectDialog = true },
+                        modifier = Modifier
+                            .height(34.dp)
+                            .testTag("add_subject_button"),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                    ) {
+                        Text("+ Add Subject", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = PrimaryLilac)
+                    }
+                }
+
+                // Subjects Selector Row (Default + Custom Subjects)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
                         .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val subjects = listOf(
+                    val defaultSubjects = listOf(
                         "Mathematics" to "📐",
                         "Physics" to "⚡",
                         "Biology" to "🧬",
                         "Chemistry" to "🧪",
                         "English" to "📖"
                     )
-                    subjects.forEach { (sub, emoji) ->
+                    val customPills = customSubjects.map { it to "📚" }
+                    val allSubjectsList = (defaultSubjects + customPills).distinctBy { it.first }
+
+                    allSubjectsList.forEach { (sub, emoji) ->
                         val sel = selectedSubject == sub
                         Box(
                             modifier = Modifier
@@ -6999,7 +8988,7 @@ fun SyllabusBurnDownView(
                 }
 
                 // Chapters list
-                val chapters = syllabusData[selectedSubject] ?: emptyList()
+                val chapters = defaultSyllabusData[selectedSubject] ?: defaultCustomChapters
                 chapters.forEach { (chapterName, subtopics) ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -7291,9 +9280,8 @@ fun SyllabusBurnDownView(
 
                                     Button(
                                         onClick = {
-                                            viewModel.updateTask(revTask.copy(isCompleted = true))
-                                            viewModel.addXp(120)
-                                            Toast.makeText(context, "Revision completed! +120 XP earned 🏆✨", Toast.LENGTH_SHORT).show()
+                                            viewModel.toggleTaskCompletion(revTask)
+                                            Toast.makeText(context, "Revision completed! +15 XP earned 🏆✨", Toast.LENGTH_SHORT).show()
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = MintGreen),
                                         shape = RoundedCornerShape(10.dp),
@@ -7309,9 +9297,9 @@ fun SyllabusBurnDownView(
             }
 
             "Balance" -> {
-                // --- TAB 3: SUBJECT WEEKLY TARGETS & PROGRESS ---
+                // --- TAB 3: DYNAMIC WEEKLY SUBJECT TARGETS & REAL-TIME PROGRESS ---
                 Text(
-                    text = "Weekly Subject Targets & Allocation 📊⚖️",
+                    text = "Dynamic Weekly Targets & Progress Tracker 📊⚖️",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -7328,30 +9316,33 @@ fun SyllabusBurnDownView(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "Set weekly target study hours for each Matric subject. Ensure your actual study duration matches your weightages to balance focus.",
+                            text = "Set target hours for each subject. Study time logged via focus sessions, completed tasks, or manual entries automatically updates weekly progress in real-time!",
                             style = MaterialTheme.typography.bodySmall,
                             color = SoftGray
                         )
 
-                        val subjects = listOf("Mathematics", "Physics", "Biology", "Chemistry", "English")
+                        val defaultSubjects = listOf("Mathematics", "Physics", "Biology", "Chemistry", "English")
+                        val allSubjectsList = (defaultSubjects + customSubjects).distinct()
                         
-                        // Calculate focus session hours per subject this week
-                        val subjectActualHours = remember(focusSessions) {
-                            subjects.associateWith { sub ->
-                                val totalMin = focusSessions.filter { session ->
+                        // MODULE 2: Dynamic Weekly Target Updates tied directly to daily time tracking states
+                        val subjectActualHours = remember(focusSessions, tasks, subjectStudyTimeLogs, customSubjects) {
+                            allSubjectsList.associateWith { sub ->
+                                // 1. Time from focus sessions
+                                val focusMin = focusSessions.filter { session ->
                                     val isThisWeek = session.timestamp >= System.currentTimeMillis() - 7 * 86400000L
-                                    if (!isThisWeek) return@filter false
-                                    val title = session.taskTitle.lowercase()
-                                    when (sub) {
-                                        "Mathematics" -> title.contains("math") || title.contains("calc") || title.contains("algebra") || title.contains("geom")
-                                        "Physics" -> title.contains("phys") || title.contains("force") || title.contains("kinematic") || title.contains("newton")
-                                        "Biology" -> title.contains("bio") || title.contains("dna") || title.contains("genetics") || title.contains("meiosis")
-                                        "Chemistry" -> title.contains("chem") || title.contains("acid") || title.contains("equilibrium") || title.contains("cell")
-                                        "English" -> title.contains("eng") || title.contains("read") || title.contains("poem") || title.contains("shakespeare") || title.contains("essay")
-                                        else -> false
-                                    }
+                                    isThisWeek && session.taskTitle.lowercase().contains(sub.lowercase())
                                 }.sumOf { it.durationMinutes }
-                                totalMin / 60f
+
+                                // 2. Time from completed tasks
+                                val taskMin = tasks.filter { task ->
+                                    val isThisWeek = task.dueDate >= System.currentTimeMillis() - 7 * 86400000L
+                                    task.isCompleted && task.subject.equals(sub, ignoreCase = true)
+                                }.sumOf { it.estimatedMinutes }
+
+                                // 3. Direct logged study time
+                                val loggedHours = subjectStudyTimeLogs[sub] ?: 0f
+
+                                (focusMin / 60f) + (taskMin / 60f) + loggedHours
                             }
                         }
 
@@ -7360,7 +9351,7 @@ fun SyllabusBurnDownView(
                         var biasedSubject = ""
                         var neglectedSubject = ""
                         
-                        subjects.forEach { s ->
+                        allSubjectsList.forEach { s ->
                             val actual = subjectActualHours[s] ?: 0f
                             val target = subjectWeeklyTargets[s] ?: 4
                             if (actual > target * 1.5f) {
@@ -7384,7 +9375,7 @@ fun SyllabusBurnDownView(
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("⚠️", fontSize = 18.sp)
                                     Text(
-                                        text = "Study Imbalance Alert: You are investing high energy into $biasedSubject but neglecting $neglectedSubject. Use the Scheduler to spread the workload equally! ⚖️",
+                                        text = "Study Imbalance Alert: You are investing high energy into $biasedSubject but neglecting $neglectedSubject. Balance your workload! ⚖️",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = OrangeRed
@@ -7403,7 +9394,7 @@ fun SyllabusBurnDownView(
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("⚖️", fontSize = 18.sp)
                                     Text(
-                                        text = "Your weekly subject-level allocation is balanced nicely. Keep keeping pressure uniform across all papers!",
+                                        text = "Your weekly subject allocation is well-balanced! All logged study time advances your weekly targets automatically.",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = MintGreen
@@ -7414,8 +9405,8 @@ fun SyllabusBurnDownView(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // Sliders & Progress Bars
-                        subjects.forEach { sub ->
+                        // Dynamic Sliders & Progress Bars
+                        allSubjectsList.forEach { sub ->
                             val actual = subjectActualHours[sub] ?: 0f
                             val target = subjectWeeklyTargets[sub] ?: 4
                             val progressPct = if (target > 0) (actual / target).coerceIn(0f, 1f) else 1.0f
@@ -7434,8 +9425,24 @@ fun SyllabusBurnDownView(
                                     )
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
+                                        // Quick Log Button for instant dynamic target update
+                                        Button(
+                                            onClick = {
+                                                viewModel.logSubjectStudyTime(sub, 30)
+                                                Toast.makeText(context, "+30 mins logged for $sub! Target updated real-time! ✨", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier
+                                                .height(28.dp)
+                                                .testTag("quick_log_30m_$sub"),
+                                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryLilac.copy(alpha = 0.15f), contentColor = PrimaryLilac),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text("+30m Log ⏱️", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+
                                         IconButton(
                                             onClick = { if (target > 1) viewModel.setSubjectWeeklyTarget(sub, target - 1) },
                                             modifier = Modifier.size(24.dp).clip(CircleShape).background(PrimaryLilac.copy(alpha = 0.1f))
@@ -7457,7 +9464,7 @@ fun SyllabusBurnDownView(
                                     }
                                 }
 
-                                // Custom progress bar
+                                // Custom progress bar dynamically updating
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()

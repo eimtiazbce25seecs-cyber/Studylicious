@@ -30,6 +30,14 @@ class StudyRepository(
     private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 
     // --- Task operations ---
+    suspend fun insertWeakTopic(weakTopic: WeakTopic) = withContext(Dispatchers.IO) {
+        weakTopicDao.insertWeakTopic(weakTopic)
+    }
+
+    suspend fun deleteWeakTopic(weakTopic: WeakTopic) = withContext(Dispatchers.IO) {
+        weakTopicDao.deleteWeakTopic(weakTopic)
+    }
+
     suspend fun insertTask(task: Task) = withContext(Dispatchers.IO) {
         taskDao.insertTask(task)
     }
@@ -51,6 +59,20 @@ class StudyRepository(
     }
 
     // --- Streak operations ---
+    suspend fun checkStreakValidity() = withContext(Dispatchers.IO) {
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val yesterdayStr = getYesterdayDateString()
+        val currentStreakState = streakDao.getStreak().firstOrNull() ?: StreakState()
+        if (currentStreakState.lastActiveDate.isNotEmpty() &&
+            currentStreakState.lastActiveDate != todayStr &&
+            currentStreakState.lastActiveDate != yesterdayStr) {
+            // Full calendar day missed -> Reset streak to ZERO
+            streakDao.insertStreak(
+                currentStreakState.copy(currentStreak = 0)
+            )
+        }
+    }
+
     suspend fun completeTaskAndCheckStreak(task: Task) = withContext(Dispatchers.IO) {
         val updatedTask = task.copy(isCompleted = !task.isCompleted)
         taskDao.updateTask(updatedTask)
@@ -170,6 +192,32 @@ class StudyRepository(
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)
         return cal.timeInMillis
+    }
+
+    suspend fun performMidnightEodRollover() = withContext(Dispatchers.IO) {
+        val tasksList = taskDao.getAllTasks().firstOrNull() ?: emptyList()
+        val todayStart = getStartOfDayTimestamp(0)
+        val todayEnd = todayStart + 86400000L - 1 // End of today (23:59:59)
+
+        // Find all incomplete tasks due today or overdue
+        val uncompletedTasks = tasksList.filter { !it.isCompleted && it.dueDate <= todayEnd }
+        if (uncompletedTasks.isEmpty()) return@withContext
+
+        // Tomorrow start timestamp (dayOffset = 1)
+        val tomorrowStart = getStartOfDayTimestamp(1)
+        
+        // Evaluate available morning/afternoon slots for tomorrow
+        val availableHours = listOf(8, 10, 12, 14, 15, 17)
+
+        uncompletedTasks.forEachIndexed { index, task ->
+            val hour = availableHours[index % availableHours.size]
+            val newDueDate = tomorrowStart + (hour * 3600000L)
+            val updatedTask = task.copy(
+                dueDate = newDueDate,
+                rescheduledCount = task.rescheduledCount + 1
+            )
+            taskDao.updateTask(updatedTask)
+        }
     }
 
     // --- AI Coach Tab ---
@@ -301,7 +349,7 @@ class StudyRepository(
                     subject = parsed.subject,
                     chapter = parsed.chapter,
                     taskType = parsed.taskType,
-                    dueDate = getStartOfDayTimestamp(idx + 1) + 16 * 3600000L, // Due afternoon of successive future days
+                    dueDate = getStartOfDayTimestamp(0) + 12 * 3600000L, // Due today at 12:00 PM for Today's Schedule
                     estimatedMinutes = parsed.estimatedMinutes,
                     workloadScore = parsed.workloadScore
                 )
@@ -352,7 +400,7 @@ class StudyRepository(
                         subject = subject,
                         chapter = chapter,
                         taskType = type,
-                        dueDate = getStartOfDayTimestamp(idx + 1) + 15 * 3600000L,
+                        dueDate = getStartOfDayTimestamp(0) + (8 + (idx % 10)) * 3600000L, // Due Today at daytime hours
                         estimatedMinutes = if (type == "TEST") 60 else 45,
                         workloadScore = if (type == "TEST") 4 else 3
                     )
@@ -364,7 +412,7 @@ class StudyRepository(
                         subject = "Mathematics",
                         chapter = "Calculus Integration",
                         taskType = "STUDY",
-                        dueDate = getStartOfDayTimestamp(1) + 14 * 3600000L,
+                        dueDate = getStartOfDayTimestamp(0) + 10 * 3600000L,
                         estimatedMinutes = 45,
                         workloadScore = 3
                     ),
@@ -373,7 +421,7 @@ class StudyRepository(
                         subject = "Physical Sciences",
                         chapter = "Organic Molecules",
                         taskType = "ASSIGNMENT",
-                        dueDate = getStartOfDayTimestamp(2) + 16 * 3600000L,
+                        dueDate = getStartOfDayTimestamp(0) + 14 * 3600000L,
                         estimatedMinutes = 60,
                         workloadScore = 4
                     )
@@ -475,87 +523,16 @@ class StudyRepository(
 
     // --- Database Prepopulation ---
     suspend fun prefillDatabaseWithMatricData() = withContext(Dispatchers.IO) {
-        val existingTasks = taskDao.getAllTasks().firstOrNull() ?: emptyList()
-        if (existingTasks.isNotEmpty()) return@withContext
-
-        // Prepopulate tasks
-        val today = getStartOfDayTimestamp(0)
-        val prepTasks = listOf(
-            Task(
-                title = "Study Calculus Limits & Continuity",
-                subject = "Mathematics",
-                chapter = "Differential Calculus",
-                taskType = "STUDY",
-                dueDate = today + 14 * 3600000L, // Today afternoon
-                estimatedMinutes = 45,
-                workloadScore = 3
-            ),
-            Task(
-                title = "Solve Mechanics Exam Paper",
-                subject = "Physical Sciences",
-                chapter = "Vertical Projectile Motion",
-                taskType = "ASSIGNMENT",
-                dueDate = today + 16 * 3600000L, // Today evening
-                estimatedMinutes = 60,
-                workloadScore = 4
-            ),
-            Task(
-                title = "Life Sciences Weekly Class Test",
-                subject = "Life Sciences",
-                chapter = "DNA Replication",
-                taskType = "TEST",
-                dueDate = getStartOfDayTimestamp(1) + 9 * 3600000L, // Tomorrow morning
-                estimatedMinutes = 45,
-                workloadScore = 5
-            ),
-            Task(
-                title = "Study Ledger Accounts & Cash Flow",
-                subject = "Accounting",
-                chapter = "Financial Statements",
-                taskType = "STUDY",
-                dueDate = getStartOfDayTimestamp(2) + 15 * 3600000L, // 2 days from now
-                estimatedMinutes = 90,
-                workloadScore = 4
-            ),
-            Task(
-                title = "Read Hamlet Act 3 Analysis",
-                subject = "English Home Language",
-                chapter = "Shakespearean Drama",
-                taskType = "STUDY",
-                dueDate = getStartOfDayTimestamp(4) + 11 * 3600000L, // 4 days from now
-                estimatedMinutes = 30,
-                workloadScore = 2
+        checkStreakValidity()
+        val existingMessages = chatDao.getAllMessages().firstOrNull() ?: emptyList()
+        if (existingMessages.isEmpty()) {
+            chatDao.insertMessage(
+                ChatMessage(
+                    content = "Howzit Matric! 🌟 I'm Studyly, your cute AI study coach robot. Ask me any conceptual question, request a practice quiz, or let me design a lekker study timetable! Let's crush this final year! 🚀",
+                    sender = "COACH"
+                )
             )
-        )
-        taskDao.insertTasks(prepTasks)
-
-        // Prepopulate streak
-        streakDao.insertStreak(
-            StreakState(
-                currentStreak = 4,
-                bestStreak = 8,
-                lastActiveDate = getYesterdayDateString()
-            )
-        )
-
-        // Prepopulate weak topics
-        weakTopicDao.insertWeakTopic(
-            WeakTopic(
-                subject = "Physical Sciences",
-                topicName = "Organic Chemistry Nomenclature",
-                confidenceLevel = 2,
-                mistakeDescription = "Confusing IUPAC names of esters and aldehydes. Scheduled deep practice of suffixes.",
-                scheduledRevisionDate = getStartOfDayTimestamp(2) + 10 * 3600000L
-            )
-        )
-
-        // Prepopulate chat welcome message
-        chatDao.insertMessage(
-            ChatMessage(
-                content = "Howzit Matric! 🌟 I'm Studyly, your cute AI study coach robot. Ask me any conceptual question, request a practice quiz, or let me design a lekker study timetable! Let's crush this final year! 🚀",
-                sender = "COACH"
-            )
-        )
+        }
     }
 
     // --- To-Do operations ---
@@ -632,19 +609,22 @@ class StudyRepository(
             Analyze this study guideline, scanned list, or topic objectives:
             "$rawText"
             
-            Produce an intelligent hourly and weekly/monthly breakdown of study tasks.
+            Produce an intelligent multi-factor hourly and calendar breakdown of study tasks.
             - If there is a test or exam mentioned (even if it's 1 month later!), you MUST divide the syllabus progressively from today (day 0) up to that test date, placing a preparation review every few days, and placing the final "TEST" task on the exam day.
             - Group or map tasks into these subjects: Mathematics, Physical Sciences, Life Sciences, English, History, Accounting, or General Study.
             - Assign each task to a specific day offset (`daysFromNow`: 0 for today, 1 for tomorrow, up to 30 days) and hour of the day (`hourOfDay`: 8 to 20).
             - Distribute tasks evenly to prevent overload.
             
-            PERSONALIZATION INPUTS:
+            MULTI-FACTOR PERSONALIZATION & CONSTRAINT INPUTS:
             - Student's Current Mood: $mood
             - Student's Peak Focus Hours: $topStudyHours
+            - Hard Constraints: Sleep Hours (23:00 to 06:00) and Prayer Times (13:00 Dhuhr, 16:00 Asr, 19:00 Maghrib) are hard locked. DO NOT schedule tasks during these hours.
             
-            SUBJECT DIVISION RULES:
-            - Always schedule heavy analytical subjects like Mathematics or Physical Sciences first or during peak focus hours.
-            - When the student is tired (Current Mood is "Tired"), schedule languages (like English), History, or lighter revision/study tasks later in the afternoon/evening (e.g. after 4 PM / 16:00), while placing Mathematics in the morning when their brain is fresh.
+            MOOD & BEHAVIOR RULES:
+            - Energetic: Prioritize high-brain-power analytical subjects (Mathematics, Physical Sciences) and heavy test preparations during peak focus hours.
+            - Focused: Prioritize problem sets, practice exercises, and Active Recall / Spaced Repetition slots.
+            - Calm: Schedule large, deep-focus flow tasks and structured reading.
+            - Tired: Schedule lighter low-cognitive tasks (English, History) and include a 'Mandatory Rest & Brain Reset Break' task.
             
             Return a JSON array containing objects matching this EXACT schema:
             [
@@ -662,6 +642,17 @@ class StudyRepository(
             Provide ONLY valid JSON output. No markdown block, no extra characters.
         """.trimIndent()
 
+        // Helper to adjust hour away from hard blocks (Sleep hours & Prayer times)
+        fun sanitizeHour(hour: Int): Int {
+            var h = hour
+            val locked = listOf(23, 0, 1, 2, 3, 4, 5, 6, 13, 16, 19)
+            while (h in locked) {
+                h = (h + 1) % 24
+                if (h < 7) h = 7
+            }
+            return h
+        }
+
         try {
             val jsonResponse = GeminiClient.generateText(prompt, systemInstruction, jsonOutput = true)
             val cleanJson = jsonResponse.trim().removeSurrounding("```json", "```").trim()
@@ -670,20 +661,21 @@ class StudyRepository(
             val adapter = moshi.adapter<List<ProposedTaskJson>>(type)
             val parsedList = adapter.fromJson(cleanJson) ?: emptyList()
             
-            // Adjust based on mood & top study hours rules
+            // Post-process adjustments for mood, peak focus, and hard blocks
             parsedList.map { task ->
+                val safeHour = sanitizeHour(task.hourOfDay)
                 if (mood.equals("Tired", ignoreCase = true)) {
                     val isHeavy = task.subject.uppercase() in listOf("MATHEMATICS", "MATH", "PHYSICAL SCIENCES", "PHYSICS")
                     val isLight = task.subject.uppercase() in listOf("ENGLISH", "HISTORY", "ACCOUNTING", "LANGUAGES", "GENERAL STUDY")
-                    if (isHeavy && task.hourOfDay >= 15) {
-                        task.copy(hourOfDay = 9) // Move heavy tasks to early morning
-                    } else if (isLight && task.hourOfDay < 12) {
-                        task.copy(hourOfDay = 17) // Move light/languages to evening
+                    if (isHeavy && safeHour >= 15) {
+                        task.copy(hourOfDay = sanitizeHour(9))
+                    } else if (isLight && safeHour < 12) {
+                        task.copy(hourOfDay = sanitizeHour(17))
                     } else {
-                        task
+                        task.copy(hourOfDay = safeHour)
                     }
                 } else {
-                    task
+                    task.copy(hourOfDay = safeHour)
                 }
             }
         } catch (e: Exception) {

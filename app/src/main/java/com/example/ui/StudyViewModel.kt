@@ -1,5 +1,6 @@
 package com.example.ui
 
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Job
 import java.util.Calendar
 
 class StudyViewModel(
@@ -106,14 +109,88 @@ class StudyViewModel(
     private val _subjectWeeklyTargets = MutableStateFlow<Map<String, Int>>(emptyMap())
     val subjectWeeklyTargets: StateFlow<Map<String, Int>> = _subjectWeeklyTargets.asStateFlow()
 
+    // MODULE 2: Custom Subjects & Dynamic Weekly Target Tracking
+    private val _customSubjects = MutableStateFlow<List<String>>(emptyList())
+    val customSubjects: StateFlow<List<String>> = _customSubjects.asStateFlow()
+
+    private val _subjectStudyTimeLogs = MutableStateFlow<Map<String, Float>>(emptyMap())
+    val subjectStudyTimeLogs: StateFlow<Map<String, Float>> = _subjectStudyTimeLogs.asStateFlow()
+
     init {
         _registeredUsers.value = loadRegisteredUsers()
+        loadCustomSubjects()
         loadSyllabusProgress()
         loadSubjectWeeklyTargets()
+        loadSubjectStudyTimeLogs()
     }
 
-    private val _xpPoints = MutableStateFlow(sharedPrefs.getInt("xp_points_${sharedPrefs.getString("user_name", "")}", 120))
+    private val _xpPoints = MutableStateFlow(sharedPrefs.getInt("xp_points_${sharedPrefs.getString("user_name", "")}", 0))
     val xpPoints: StateFlow<Int> = _xpPoints.asStateFlow()
+
+    private fun saveTimestampList(key: String, list: List<Long>) {
+        val json = list.joinToString(",")
+        sharedPrefs.edit().putString(key, json).apply()
+    }
+
+    private fun loadTimestampList(key: String): List<Long> {
+        val str = sharedPrefs.getString(key, "") ?: ""
+        if (str.isEmpty()) return emptyList()
+        return str.split(",").mapNotNull { it.toLongOrNull() }
+    }
+
+    private val _activeRecallLogs = MutableStateFlow<List<Long>>(
+        loadTimestampList("active_recall_logs_${sharedPrefs.getString("user_name", "")}")
+    )
+    val activeRecallLogs: StateFlow<List<Long>> = _activeRecallLogs.asStateFlow()
+
+    private val _revisionSlotLogs = MutableStateFlow<List<Long>>(
+        loadTimestampList("revision_slot_logs_${sharedPrefs.getString("user_name", "")}")
+    )
+    val revisionSlotLogs: StateFlow<List<Long>> = _revisionSlotLogs.asStateFlow()
+
+    private val _aiCoachLogs = MutableStateFlow<List<Long>>(
+        loadTimestampList("ai_coach_logs_${sharedPrefs.getString("user_name", "")}")
+    )
+    val aiCoachLogs: StateFlow<List<Long>> = _aiCoachLogs.asStateFlow()
+
+    fun logActiveRecallSession() {
+        viewModelScope.launch {
+            val name = _userName.value
+            val list = _activeRecallLogs.value.toMutableList()
+            list.add(System.currentTimeMillis())
+            _activeRecallLogs.value = list
+            saveTimestampList("active_recall_logs_$name", list)
+        }
+    }
+
+    fun logRevisionSlot() {
+        viewModelScope.launch {
+            val name = _userName.value
+            val list = _revisionSlotLogs.value.toMutableList()
+            list.add(System.currentTimeMillis())
+            _revisionSlotLogs.value = list
+            saveTimestampList("revision_slot_logs_$name", list)
+        }
+    }
+
+    fun logAiCoachUsage() {
+        viewModelScope.launch {
+            val name = _userName.value
+            val list = _aiCoachLogs.value.toMutableList()
+            list.add(System.currentTimeMillis())
+            _aiCoachLogs.value = list
+            saveTimestampList("ai_coach_logs_$name", list)
+        }
+    }
+
+    private val _hoursStudied = MutableStateFlow<Float>(
+        if (sharedPrefs.contains("hours_studied_${sharedPrefs.getString("user_name", "")}")) {
+            sharedPrefs.getFloat("hours_studied_${sharedPrefs.getString("user_name", "")}", 0f)
+        } else {
+            loadFocusSessions().sumOf { it.durationMinutes } / 60f
+        }
+    )
+    val hoursStudied: StateFlow<Float> = _hoursStudied.asStateFlow()
 
     private val _isLoggedIn = MutableStateFlow(sharedPrefs.getBoolean("is_logged_in", false))
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
@@ -136,6 +213,168 @@ class StudyViewModel(
     private val _dailySleepHours = MutableStateFlow(sharedPrefs.getInt("daily_sleep_hours_${sharedPrefs.getString("user_name", "")}", 7).coerceAtLeast(5))
     val dailySleepHours: StateFlow<Int> = _dailySleepHours.asStateFlow()
 
+    private val _sleepStartHour = MutableStateFlow(sharedPrefs.getInt("sleep_start_hour_${sharedPrefs.getString("user_name", "")}", 22))
+    val sleepStartHour: StateFlow<Int> = _sleepStartHour.asStateFlow()
+
+    private val _sleepEndHour = MutableStateFlow(sharedPrefs.getInt("sleep_end_hour_${sharedPrefs.getString("user_name", "")}", 6))
+    val sleepEndHour: StateFlow<Int> = _sleepEndHour.asStateFlow()
+
+    private val _powerNapHour = MutableStateFlow(sharedPrefs.getInt("power_nap_hour_${sharedPrefs.getString("user_name", "")}", 14))
+    val powerNapHour: StateFlow<Int> = _powerNapHour.asStateFlow()
+
+    private val _isPowerNapEnabled = MutableStateFlow(sharedPrefs.getBoolean("power_nap_enabled_${sharedPrefs.getString("user_name", "")}", true))
+    val isPowerNapEnabled: StateFlow<Boolean> = _isPowerNapEnabled.asStateFlow()
+
+    private val _powerNapDuration = MutableStateFlow(sharedPrefs.getInt("power_nap_duration_${sharedPrefs.getString("user_name", "")}", 30))
+    val powerNapDuration: StateFlow<Int> = _powerNapDuration.asStateFlow()
+
+    private val _unsealedSleepHours = MutableStateFlow<Set<Int>>(emptySet())
+    val unsealedSleepHours: StateFlow<Set<Int>> = _unsealedSleepHours.asStateFlow()
+
+    private val _hourlySubTasks = MutableStateFlow<Map<Int, List<com.example.data.TimelineSubTask>>>(emptyMap())
+    val hourlySubTasks: StateFlow<Map<Int, List<com.example.data.TimelineSubTask>>> = _hourlySubTasks.asStateFlow()
+
+    fun setSleepSchedule(startHour: Int, endHour: Int) {
+        viewModelScope.launch {
+            val name = _userName.value
+            _sleepStartHour.value = startHour
+            _sleepEndHour.value = endHour
+            sharedPrefs.edit()
+                .putInt("sleep_start_hour_$name", startHour)
+                .putInt("sleep_end_hour_$name", endHour)
+                .apply()
+        }
+    }
+
+    fun setPowerNap(enabled: Boolean, hour: Int, durationMins: Int) {
+        viewModelScope.launch {
+            val name = _userName.value
+            _isPowerNapEnabled.value = enabled
+            _powerNapHour.value = hour
+            _powerNapDuration.value = durationMins
+            sharedPrefs.edit()
+                .putBoolean("power_nap_enabled_$name", enabled)
+                .putInt("power_nap_hour_$name", hour)
+                .putInt("power_nap_duration_$name", durationMins)
+                .apply()
+        }
+    }
+
+    fun toggleUnsealSleepHour(hour: Int) {
+        val current = _unsealedSleepHours.value.toMutableSet()
+        if (current.contains(hour)) {
+            current.remove(hour)
+        } else {
+            current.add(hour)
+        }
+        _unsealedSleepHours.value = current
+    }
+
+    fun addTimelineSubTask(hour: Int, title: String, minuteRange: String? = null) {
+        val currentMap = _hourlySubTasks.value.toMutableMap()
+        val list = (currentMap[hour] ?: emptyList()).toMutableList()
+        val sub = com.example.data.TimelineSubTask(hour = hour, title = title, minuteRange = minuteRange)
+        list.add(sub)
+        currentMap[hour] = list
+        _hourlySubTasks.value = currentMap
+
+        viewModelScope.launch {
+            val cal = Calendar.getInstance()
+            cal.set(Calendar.HOUR_OF_DAY, hour)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+
+            val newTask = Task(
+                title = title,
+                subject = "General Study",
+                chapter = "Timeline Slot ${String.format("%02d:00", hour)}",
+                taskType = "STUDY",
+                dueDate = cal.timeInMillis,
+                estimatedMinutes = 30,
+                workloadScore = 2,
+                studentName = _userName.value
+            )
+            repository.insertTask(newTask)
+        }
+    }
+
+    fun scheduleWeightageExamBlocks(
+        subjectName: String,
+        taskLoadChapters: String,
+        blocks: List<Pair<String, Int>>
+    ) {
+        viewModelScope.launch {
+            val currentCal = Calendar.getInstance()
+            var currentHour = currentCal.get(Calendar.HOUR_OF_DAY)
+            if (currentHour < 8 || currentHour > 21) currentHour = 9
+
+            val studentNameStr = _userName.value
+
+            blocks.forEachIndexed { index, (blockLabel, mins) ->
+                val hourToAssign = (currentHour + index) % 24
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, hourToAssign)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                }
+
+                val task = Task(
+                    title = "[$subjectName] $blockLabel",
+                    subject = if (subjectName.isBlank()) "General Subject" else subjectName,
+                    chapter = taskLoadChapters.ifBlank { "Exam Weightage Focus" },
+                    taskType = when {
+                        blockLabel.contains("MCQ", ignoreCase = true) -> "TEST"
+                        blockLabel.contains("Short", ignoreCase = true) -> "REVISION"
+                        else -> "STUDY"
+                    },
+                    dueDate = cal.timeInMillis,
+                    estimatedMinutes = mins,
+                    workloadScore = when {
+                        mins >= 45 -> 4
+                        mins >= 30 -> 3
+                        else -> 2
+                    },
+                    studentName = studentNameStr
+                )
+                repository.insertTask(task)
+
+                // Add to hourly timeline subtasks
+                val currentMap = _hourlySubTasks.value.toMutableMap()
+                val list = (currentMap[hourToAssign] ?: emptyList()).toMutableList()
+                list.add(com.example.data.TimelineSubTask(hour = hourToAssign, title = "[$subjectName] $blockLabel", minuteRange = "$mins mins"))
+                currentMap[hourToAssign] = list
+                _hourlySubTasks.value = currentMap
+            }
+        }
+    }
+
+    fun toggleTimelineSubTask(hour: Int, subTaskId: String) {
+        val currentMap = _hourlySubTasks.value.toMutableMap()
+        val list = (currentMap[hour] ?: emptyList()).map {
+            if (it.id == subTaskId) it.copy(isCompleted = !it.isCompleted) else it
+        }
+        currentMap[hour] = list
+        _hourlySubTasks.value = currentMap
+    }
+
+    fun deleteTimelineSubTask(hour: Int, subTaskId: String) {
+        val currentMap = _hourlySubTasks.value.toMutableMap()
+        val list = (currentMap[hour] ?: emptyList()).filter { it.id != subTaskId }
+        currentMap[hour] = list
+        _hourlySubTasks.value = currentMap
+    }
+
+    fun editTimelineSubTask(hour: Int, subTaskId: String, newTitle: String) {
+        val currentMap = _hourlySubTasks.value.toMutableMap()
+        val list = (currentMap[hour] ?: emptyList()).map {
+            if (it.id == subTaskId) it.copy(title = newTitle) else it
+        }
+        currentMap[hour] = list
+        _hourlySubTasks.value = currentMap
+    }
+
+
     fun login(name: String, email: String, profilePic: String) {
         viewModelScope.launch {
             _userName.value = name
@@ -149,14 +388,30 @@ class StudyViewModel(
             val userMoodVal = sharedPrefs.getString("user_mood_$name", "Focused") ?: "Focused"
             val userTopHours = sharedPrefs.getString("top_study_hours_$name", "Morning (8 AM - 12 PM)") ?: "Morning (8 AM - 12 PM)"
             val userSleep = sharedPrefs.getInt("daily_sleep_hours_$name", 7).coerceAtLeast(5)
+            val startHour = sharedPrefs.getInt("sleep_start_hour_$name", 22)
+            val endHour = sharedPrefs.getInt("sleep_end_hour_$name", 6)
+            val napHour = sharedPrefs.getInt("power_nap_hour_$name", 14)
+            val napEnabled = sharedPrefs.getBoolean("power_nap_enabled_$name", true)
+            val napDur = sharedPrefs.getInt("power_nap_duration_$name", 30)
             val userXp = sharedPrefs.getInt("xp_points_$name", 120)
+            val userHours = if (sharedPrefs.contains("hours_studied_$name")) {
+                sharedPrefs.getFloat("hours_studied_$name", 0f)
+            } else {
+                _focusSessions.value.sumOf { it.durationMinutes } / 60f
+            }
 
-            _appTheme.value = userTheme
-            _dailyTargetHours.value = userTarget
-            _userMood.value = userMoodVal
-            _topStudyHours.value = userTopHours
+            _sleepStartHour.value = startHour
+            _sleepEndHour.value = endHour
+            _powerNapHour.value = napHour
+            _isPowerNapEnabled.value = napEnabled
+            _powerNapDuration.value = napDur
             _dailySleepHours.value = userSleep
             _xpPoints.value = userXp
+            _hoursStudied.value = userHours
+            _activeRecallLogs.value = loadTimestampList("active_recall_logs_$name")
+            _revisionSlotLogs.value = loadTimestampList("revision_slot_logs_$name")
+            _aiCoachLogs.value = loadTimestampList("ai_coach_logs_$name")
+            _matricExamDays.value = calculateRemainingMatricDays(name)
             
             loadSyllabusProgress()
             loadSubjectWeeklyTargets()
@@ -226,56 +481,80 @@ class StudyViewModel(
         }
     }
 
+    fun calculateRemainingMatricDays(userName: String = _userName.value): Int {
+        val name = if (userName.isNotEmpty()) userName else (sharedPrefs.getString("user_name", "") ?: "")
+        val valKey = "matric_exam_days_value_$name"
+        val timeKey = "matric_exam_days_timestamp_$name"
+        val legacyKey = "matric_exam_days_$name"
+
+        val now = System.currentTimeMillis()
+
+        if (!sharedPrefs.contains(valKey) && sharedPrefs.contains(legacyKey)) {
+            val legacyVal = sharedPrefs.getInt(legacyKey, 95)
+            sharedPrefs.edit()
+                .putInt(valKey, legacyVal)
+                .putLong(timeKey, now)
+                .apply()
+            return legacyVal
+        } else if (!sharedPrefs.contains(valKey)) {
+            sharedPrefs.edit()
+                .putInt(valKey, 95)
+                .putLong(timeKey, now)
+                .apply()
+            return 95
+        }
+
+        val setVal = sharedPrefs.getInt(valKey, 95)
+        val setTime = sharedPrefs.getLong(timeKey, now)
+
+        val diffMillis = now - setTime
+        if (diffMillis <= 0L) return setVal
+
+        val daysPassed = (diffMillis / (1000L * 60 * 60 * 24)).toInt()
+        return (setVal - daysPassed).coerceAtLeast(0)
+    }
+
+    private val _matricExamDays = MutableStateFlow(calculateRemainingMatricDays())
+    val matricExamDays: StateFlow<Int> = _matricExamDays.asStateFlow()
+
+    fun setMatricExamDays(days: Int) {
+        viewModelScope.launch {
+            val name = _userName.value
+            val valid = days.coerceAtLeast(0)
+            val now = System.currentTimeMillis()
+            sharedPrefs.edit()
+                .putInt("matric_exam_days_value_$name", valid)
+                .putLong("matric_exam_days_timestamp_$name", now)
+                .putInt("matric_exam_days_$name", valid)
+                .apply()
+            _matricExamDays.value = valid
+        }
+    }
+
+    fun refreshMatricExamDays() {
+        _matricExamDays.value = calculateRemainingMatricDays()
+    }
+
+    private val _notificationLogs = MutableStateFlow<List<Pair<String, Boolean>>>(
+        listOf(
+            "🔔 [Today] Remember to study limits for Mathematics calculus test coming up in 30 days!" to true,
+            "🔔 [Today] Goal Master: Study goal set to 12 hours. Study consistently to earn bonus XP!" to false,
+            "🔔 [Yesterday] Quote of the day: Tap on the quote card to view brand new unique motivation!" to false
+        )
+    )
+    val notificationLogs: StateFlow<List<Pair<String, Boolean>>> = _notificationLogs.asStateFlow()
+
+    fun addNotificationLog(text: String) {
+        val current = _notificationLogs.value.toMutableList()
+        current.add(0, text to true)
+        _notificationLogs.value = current
+    }
+
     private val _focusSessions = MutableStateFlow<List<FocusSession>>(loadFocusSessions())
     val focusSessions: StateFlow<List<FocusSession>> = _focusSessions.asStateFlow()
 
     private fun generateDefaultFocusSessions(): List<FocusSession> {
-        val sessions = mutableListOf<FocusSession>()
-        
-        // 7 days distribution of study hours matching the image:
-        // Day 0 (6 days ago): 4.5 hours -> 270 minutes
-        // Day 1 (5 days ago): 2.5 hours -> 150 minutes
-        // Day 2 (4 days ago): 5.5 hours -> 330 minutes
-        // Day 3 (3 days ago): 6.5 hours -> 390 minutes
-        // Day 4 (2 days ago): 4.0 hours -> 240 minutes
-        // Day 5 (1 day ago):  5.0 hours -> 300 minutes
-        // Day 6 (Today):      8.0 hours -> 480 minutes
-        // Total = 36 hours exactly!
-        val daysData = listOf(
-            listOf(90 to "Physics Revision", 90 to "Maths Exercise", 90 to "English essay"), // 6 days ago
-            listOf(90 to "History Reading", 60 to "Self-study"), // 5 days ago
-            listOf(120 to "Chemistry Lab", 90 to "Biology Diagrams", 120 to "Maths Past Papers"), // 4 days ago
-            listOf(150 to "Computer Science", 120 to "Physics Prep", 120 to "Language Arts"), // 3 days ago
-            listOf(120 to "Accounting Practice", 120 to "Geography Study"), // 2 days ago
-            listOf(180 to "Economics Review", 120 to "Revision"), // 1 day ago
-            listOf(240 to "Weekend Study Sprint", 240 to "Maths Marathon") // Today
-        )
-        
-        val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-        for (i in 0 until 7) {
-            val targetCal = Calendar.getInstance().apply {
-                add(Calendar.DATE, -(6 - i))
-                set(Calendar.HOUR_OF_DAY, 14)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }
-            val tasks = daysData[i]
-            tasks.forEachIndexed { taskIndex, (duration, name) ->
-                val taskTime = targetCal.timeInMillis + (taskIndex * 3600000L) // space them out
-                sessions.add(
-                    FocusSession(
-                        id = "default_${i}_${taskIndex}",
-                        taskTitle = name,
-                        durationMinutes = duration,
-                        xpEarned = duration / 2,
-                        timestamp = taskTime,
-                        dateString = sdf.format(java.util.Date(taskTime))
-                    )
-                )
-            }
-        }
-        return sessions
+        return emptyList()
     }
 
     private fun loadFocusSessions(): List<FocusSession> {
@@ -306,9 +585,22 @@ class StudyViewModel(
         }
     }
 
+    fun addHoursStudied(hours: Float) {
+        viewModelScope.launch {
+            val name = _userName.value
+            val current = _hoursStudied.value
+            val next = current + hours
+            _hoursStudied.value = next
+            sharedPrefs.edit().putFloat("hours_studied_$name", next).apply()
+        }
+    }
+
     fun logFocusSession(taskTitle: String, durationMinutes: Int, xpEarned: Int) {
         viewModelScope.launch {
-            addXp(xpEarned)
+            if (xpEarned > 0) {
+                addXp(xpEarned)
+            }
+            addHoursStudied(durationMinutes / 60f)
             val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
             val dateStr = sdf.format(java.util.Date())
             val newSession = FocusSession(
@@ -332,6 +624,15 @@ class StudyViewModel(
 
     val allTasks: StateFlow<List<Task>> = kotlinx.coroutines.flow.combine(userName, repository.allTasks) { name, tasks ->
         tasks.filter { it.studentName.lowercase() == name.lowercase() || it.studentName.isEmpty() }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val overdueTasks: StateFlow<List<Task>> = kotlinx.coroutines.flow.combine(allTasks, MutableStateFlow(System.currentTimeMillis())) { tasks, _ ->
+        val now = System.currentTimeMillis()
+        tasks.filter { !it.isCompleted && it.dueDate < now }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -396,6 +697,12 @@ class StudyViewModel(
             repository.prefillDatabaseWithMatricData()
             fetchNewQuote()
         }
+        viewModelScope.launch {
+            while (isActive) {
+                refreshMatricExamDays()
+                kotlinx.coroutines.delay(60_000L)
+            }
+        }
     }
 
     private var lastQuoteIndex = -1
@@ -428,6 +735,11 @@ class StudyViewModel(
 
     fun toggleTaskCompletion(task: Task) {
         viewModelScope.launch {
+            if (!task.isCompleted) {
+                addXp(15)
+                val duration = if (task.estimatedMinutes > 0) task.estimatedMinutes else 25
+                logFocusSession(task.title, duration, 0)
+            }
             repository.completeTaskAndCheckStreak(task)
         }
     }
@@ -452,6 +764,19 @@ class StudyViewModel(
                 repository.autoBalanceAllTasks()
             } catch (e: Exception) {
                 // Error handling
+            } finally {
+                _isRescheduling.value = false
+            }
+        }
+    }
+
+    fun performEodRollover() {
+        viewModelScope.launch {
+            _isRescheduling.value = true
+            try {
+                repository.performMidnightEodRollover()
+            } catch (e: Exception) {
+                e.printStackTrace()
             } finally {
                 _isRescheduling.value = false
             }
@@ -495,16 +820,80 @@ class StudyViewModel(
     private val _duelOpponentReaction = MutableStateFlow("")
     val duelOpponentReaction: StateFlow<String> = _duelOpponentReaction.asStateFlow()
 
+    // Interactive AI Partner Companion States
+    private val _duelAiMessage = MutableStateFlow("Aisha AI 🤖: Welcome to Study Duel! Choose your focus duration and let's crush our goals together.")
+    val duelAiMessage: StateFlow<String> = _duelAiMessage.asStateFlow()
+
+    private var duelEndTimeMs: Long = 0L
+    private var duelTimerJob: Job? = null
+
     fun startDuel(durationMinutes: Int) {
         _isDuelActive.value = true
-        _duelTimeRemaining.value = durationMinutes * 60
         _duelMyScore.value = 0
         _duelOpponentScore.value = 0
         _duelOpponentReaction.value = ""
+
+        // MODULE 1: Accurate countdown timer using timestamp calculations (System.currentTimeMillis())
+        val totalSecs = durationMinutes * 60
+        _duelTimeRemaining.value = totalSecs
+        duelEndTimeMs = System.currentTimeMillis() + totalSecs * 1000L
+
+        _duelAiMessage.value = "Aisha AI 🤖: Study Duel launched for $durationMinutes mins! I'll track your remaining time accurately and motivate you along the way."
+
+        duelTimerJob?.cancel()
+        duelTimerJob = viewModelScope.launch {
+            var lastAiNotifyTimeSecs = totalSecs
+            while (_isDuelActive.value) {
+                kotlinx.coroutines.delay(500)
+                val remainingSecs = ((duelEndTimeMs - System.currentTimeMillis()) / 1000).toInt().coerceAtLeast(0)
+                _duelTimeRemaining.value = remainingSecs
+
+                // AI Partner live notifications based on remaining time
+                if (lastAiNotifyTimeSecs - remainingSecs >= 30 || remainingSecs == 0) {
+                    lastAiNotifyTimeSecs = remainingSecs
+                    val minsLeft = remainingSecs / 60
+                    triggerAiPartnerNotification(minsLeft, remainingSecs)
+                }
+
+                if (remainingSecs <= 0) {
+                    _isDuelActive.value = false
+                    _duelAiMessage.value = "Aisha AI 🤖: 🏆 DUEL TIME COMPLETE! Phenomenal work! You earned +200 Focus XP."
+                    earnDuelPoints(200)
+                    break
+                }
+            }
+        }
+    }
+
+    private fun triggerAiPartnerNotification(minsLeft: Int, secsLeft: Int) {
+        if (secsLeft in 1..59) {
+            _duelAiMessage.value = "Aisha AI 🤖: 🚨 Final minute countdown! $secsLeft seconds left — complete your answer! ⏱️"
+            return
+        }
+        val prompts = listOf(
+            "Aisha AI 🤖: $minsLeft minutes left, keep the momentum going! Stay focused on your notes. 💡",
+            "Aisha AI 🤖: $minsLeft mins remaining! You're crushing this study block — Board Exam toppers are made right now! 🔥",
+            "Aisha AI 🤖: Halfway mark approaching! Don't touch distractions. Take deep breaths and solve the next question. 🧠",
+            "Aisha AI 🤖: $minsLeft mins left! 'Small daily efforts compound into 90%+ Board Exam scores!' 💪",
+            "Aisha AI 🤖: Only $minsLeft minutes left! Finish strong and review your key formulas! 📐"
+        )
+        _duelAiMessage.value = prompts.random()
+    }
+
+    fun requestAiMotivationPrompt() {
+        val motivations = listOf(
+            "Aisha AI 🤖: 'Believe you can and you're halfway there! High marks in Matric open doors to top pre-engineering/pre-medical colleges.' 🌟",
+            "Aisha AI 🤖: 'Focus on understanding concepts rather than rote memorization. Solve 1 past paper question right now!' 📝",
+            "Aisha AI 🤖: 'Hydrate, fix your posture, and push through! Your future self will thank you for this duel session.' 💧",
+            "Aisha AI 🤖: 'You're currently outperforming 85% of peers in total focus minutes today! Keep it up!' 📈"
+        )
+        _duelAiMessage.value = motivations.random()
     }
 
     fun stopDuel() {
         _isDuelActive.value = false
+        duelTimerJob?.cancel()
+        _duelAiMessage.value = "Aisha AI 🤖: Duel stopped. Relaunch anytime to gain focus XP."
     }
 
     fun earnDuelPoints(points: Int) {
@@ -528,12 +917,13 @@ class StudyViewModel(
     private val _isVoiceLoggerProcessing = MutableStateFlow(false)
     val isVoiceLoggerProcessing: StateFlow<Boolean> = _isVoiceLoggerProcessing.asStateFlow()
 
-    fun parseVoiceLoggerSchedule(speechText: String) {
+    fun parseVoiceLoggerSchedule(speechText: String, onComplete: ((List<Task>) -> Unit)? = null) {
         if (speechText.isBlank()) return
         viewModelScope.launch {
             _isVoiceLoggerProcessing.value = true
+            var tasksAdded = emptyList<Task>()
             try {
-                val tasksAdded = if (_isLoadsheddingMode.value) {
+                tasksAdded = if (_isLoadsheddingMode.value) {
                     parseBilingualScheduleOffline(speechText)
                 } else {
                     val systemInstruction = "You are an expert bilingual Roman Urdu and English study planner for Pakistani Matric (Grade 9 & 10) students."
@@ -543,6 +933,7 @@ class StudyViewModel(
                         
                         Extract the structured tasks described.
                         - Map subjects correctly: Physics, Chemistry, Mathematics, Biology, Urdu, Islamiat, Computer Science, English, Pakistan Studies, or General Study.
+                        - ALWAYS translate titles to clear, concise ENGLISH (e.g. 'Solve Physics Chapter 3 Numericals', 'Practice Mathematics Algebra Theorems', 'Review Chemistry Compounds').
                         - Detect time estimates (e.g., '1 ghanta' -> 60, 'half hour' -> 30, 'numerical part' -> 45 minutes).
                         - Detect urgency / due dates (e.g., 'kal subha' or 'tomorrow morning' -> due tomorrow 9 AM, 'parso' or 'day after tomorrow' -> due in 2 days, 'aaj shaam' -> due today 6 PM).
                         - Determine task types: STUDY, TEST, REVISION, ASSIGNMENT.
@@ -597,7 +988,7 @@ class StudyViewModel(
                 }
                 
                 for (t in tasksAdded) {
-                    repository.insertTask(t)
+                    registerAndScheduleTestIfNeeded(t)
                 }
                 
                 if (_isLoadsheddingMode.value) {
@@ -607,6 +998,7 @@ class StudyViewModel(
                 // Handled
             } finally {
                 _isVoiceLoggerProcessing.value = false
+                onComplete?.invoke(tasksAdded)
             }
         }
     }
@@ -718,7 +1110,7 @@ class StudyViewModel(
                 workloadScore = workloadScore,
                 studentName = _userName.value
             )
-            repository.insertTask(newTask)
+            registerAndScheduleTestIfNeeded(newTask)
         }
     }
 
@@ -730,6 +1122,7 @@ class StudyViewModel(
 
     fun sendCoachMessage(text: String) {
         if (text.isBlank()) return
+        logAiCoachUsage()
         viewModelScope.launch {
             _coachLoading.value = true
             try {
@@ -753,7 +1146,10 @@ class StudyViewModel(
         viewModelScope.launch {
             _scanLoading.value = true
             try {
-                repository.scanHomeworkText(text)
+                val scannedTasks = repository.scanHomeworkText(text)
+                for (task in scannedTasks) {
+                    registerAndScheduleTestIfNeeded(task)
+                }
             } catch (e: Exception) {
                 // handled
             } finally {
@@ -762,17 +1158,131 @@ class StudyViewModel(
         }
     }
 
-    fun analyzeMistakesText(text: String) {
+    fun processHomeworkImage(
+        bitmap: Bitmap,
+        onTextExtracted: (String) -> Unit,
+        onError: ((String) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            _scanLoading.value = true
+            try {
+                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                val prompt = """
+                    Analyze this image as an expert transcriber. Accurately decipher messy human handwriting, abbreviations, strike-throughs, and multi-line lists.
+                    Read all handwritten or printed homework tasks, study objectives, assignments, and to-do items from this image accurately.
+                    
+                    Handling Missing Dates & Times:
+                    - If a task has no date specified, automatically default target_date to Today's Date ($todayStr).
+                    - If no duration or time is specified, intelligently estimate a default duration (e.g., 30–45 minutes) based on the task type.
+                    
+                    Return clean extracted plain text line by line, formatted as list items with estimated durations and target date where relevant.
+                """.trimIndent()
+                val text = com.example.data.GeminiClient.analyzeImage(bitmap, prompt)
+                if (text.isNotBlank()) {
+                    onTextExtracted(text.trim())
+                } else {
+                    onError?.invoke("Handwriting unclear. Please double-check or type the task.")
+                }
+            } catch (e: Exception) {
+                onError?.invoke("Handwriting unclear or API key missing. Sample loaded.")
+                val fallbackText = """
+                    - Mathematics limit functions homework questions 1 to 5 (45 mins)
+                    - Physical Sciences friction force experiment report revision (30 mins)
+                    - Life Sciences cell genetics diagram drawing (30 mins)
+                """.trimIndent()
+                onTextExtracted(fallbackText)
+            } finally {
+                _scanLoading.value = false
+            }
+        }
+    }
+
+    fun analyzeMistakesText(text: String, onComplete: ((List<WeakTopic>) -> Unit)? = null) {
         if (text.isBlank()) return
         viewModelScope.launch {
             _mistakeLoading.value = true
             try {
-                repository.analyzeTestPaperMistakes(text, _userName.value)
+                val discovered = repository.analyzeTestPaperMistakes(text, _userName.value)
+                if (discovered.isNotEmpty()) {
+                    val first = discovered.first()
+                    val dateStr = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(first.scheduledRevisionDate ?: System.currentTimeMillis()))
+                    addNotificationLog("🔍 [AI Gap Analysis] Identified ${discovered.size} learning gaps! First revision set for $dateStr.")
+                }
+                onComplete?.invoke(discovered)
             } catch (e: Exception) {
                 // handled
             } finally {
                 _mistakeLoading.value = false
             }
+        }
+    }
+
+    fun scheduleWeakTopicRevision(
+        topic: WeakTopic,
+        targetTimestamp: Long,
+        durationMinutes: Int = 45
+    ) {
+        viewModelScope.launch {
+            val updatedTopic = topic.copy(scheduledRevisionDate = targetTimestamp)
+            repository.insertWeakTopic(updatedTopic)
+
+            // Create/Insert corresponding Task for Calendar & Hourly Timeline
+            val revisionTask = Task(
+                title = "Revision: ${topic.topicName}",
+                subject = topic.subject,
+                chapter = topic.topicName,
+                taskType = "REVISION",
+                dueDate = targetTimestamp,
+                estimatedMinutes = durationMinutes,
+                workloadScore = 4,
+                studentName = _userName.value
+            )
+            repository.insertTask(revisionTask)
+
+            val dateStr = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(targetTimestamp))
+            addNotificationLog("🚨 [Revision Alert Scheduled] '${topic.topicName}' (${topic.subject}) set for $dateStr! ⏰ Populated on Calendar & Timeline.")
+        }
+    }
+
+    fun addCustomWeakTopicAndSchedule(
+        subject: String,
+        topicName: String,
+        mistakeDescription: String,
+        confidenceLevel: Int,
+        targetTimestamp: Long,
+        durationMinutes: Int = 45
+    ) {
+        viewModelScope.launch {
+            val newTopic = WeakTopic(
+                subject = subject,
+                topicName = topicName,
+                confidenceLevel = confidenceLevel,
+                mistakeDescription = mistakeDescription,
+                scheduledRevisionDate = targetTimestamp,
+                studentName = _userName.value
+            )
+            repository.insertWeakTopic(newTopic)
+
+            val revisionTask = Task(
+                title = "Revision: $topicName",
+                subject = subject,
+                chapter = topicName,
+                taskType = "REVISION",
+                dueDate = targetTimestamp,
+                estimatedMinutes = durationMinutes,
+                workloadScore = 4,
+                studentName = _userName.value
+            )
+            repository.insertTask(revisionTask)
+
+            val dateStr = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(targetTimestamp))
+            addNotificationLog("🚨 [New Gap Logged] '$topicName' ($subject) scheduled for revision on $dateStr! ⏰ Check Hourly Timeline.")
+        }
+    }
+
+    fun deleteWeakTopic(topic: WeakTopic) {
+        viewModelScope.launch {
+            repository.deleteWeakTopic(topic)
         }
     }
 
@@ -821,13 +1331,140 @@ class StudyViewModel(
 
     fun insertTask(task: Task) {
         viewModelScope.launch {
-            repository.insertTask(task)
+            registerAndScheduleTestIfNeeded(task)
         }
     }
 
     fun updateTask(task: Task) {
         viewModelScope.launch {
             repository.updateTask(task)
+            registerAndScheduleTestIfNeeded(task)
+        }
+    }
+
+    /**
+     * Checks if a task represents a future test, exam, quiz, or paper.
+     * If so, categorizes it as taskType "TEST" with a valid future target date
+     * so it auto-populates into the Exam & Paper Reminder Widget.
+     * Automatically triggers the AI scheduler to calculate remaining days until the test date,
+     * and dynamically slices & distributes preparation tasks across Weekly and Monthly Calendar Views.
+     */
+    fun registerAndScheduleTestIfNeeded(task: Task) {
+        viewModelScope.launch {
+            val titleLower = task.title.lowercase()
+            val typeLower = task.taskType.lowercase()
+            val isTestOrExam = typeLower == "test" ||
+                    titleLower.contains("test") ||
+                    titleLower.contains("exam") ||
+                    titleLower.contains("quiz") ||
+                    titleLower.contains("paper") ||
+                    titleLower.contains("midterm") ||
+                    titleLower.contains("final") ||
+                    titleLower.contains("parcha") ||
+                    titleLower.contains("assessment")
+
+            if (isTestOrExam) {
+                val now = System.currentTimeMillis()
+                var testDueDate = task.dueDate
+
+                // If the due date is today or in the past, default target date to next week (7 days from now)
+                if (testDueDate <= now + 12 * 3600000L) {
+                    val cal = Calendar.getInstance()
+                    cal.add(Calendar.DATE, 7)
+                    cal.set(Calendar.HOUR_OF_DAY, 10)
+                    cal.set(Calendar.MINUTE, 0)
+                    cal.set(Calendar.SECOND, 0)
+                    cal.set(Calendar.MILLISECOND, 0)
+                    testDueDate = cal.timeInMillis
+                }
+
+                val finalTestTask = task.copy(
+                    taskType = "TEST",
+                    dueDate = testDueDate
+                )
+                repository.insertTask(finalTestTask)
+
+                // Calculate days remaining until test date
+                val diffMs = testDueDate - now
+                val daysRemaining = (diffMs / 86400000L).toInt().coerceAtLeast(1)
+
+                // Create preparation tasks sliced across weekly & monthly calendar views leading up to test date
+                val prepTasks = mutableListOf<Task>()
+
+                // 1. Chapter & Concept Deep Review (early prep stage)
+                val reviewDayOffset = (daysRemaining * 0.3).toInt().coerceIn(1, daysRemaining)
+                val reviewCal = Calendar.getInstance().apply {
+                    add(Calendar.DATE, reviewDayOffset)
+                    set(Calendar.HOUR_OF_DAY, 14)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                prepTasks.add(
+                    Task(
+                        title = "📖 Concept Review: ${finalTestTask.subject} (${finalTestTask.chapter.ifBlank { finalTestTask.title }})",
+                        subject = finalTestTask.subject,
+                        chapter = finalTestTask.chapter.ifBlank { "Exam Prep" },
+                        taskType = "REVISION",
+                        dueDate = reviewCal.timeInMillis,
+                        estimatedMinutes = 45,
+                        workloadScore = 3,
+                        studentName = _userName.value
+                    )
+                )
+
+                // 2. Practice Questions & Active Recall (mid prep stage)
+                val practiceDayOffset = (daysRemaining * 0.65).toInt().coerceIn(1, daysRemaining)
+                val practiceCal = Calendar.getInstance().apply {
+                    add(Calendar.DATE, practiceDayOffset)
+                    set(Calendar.HOUR_OF_DAY, 16)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                prepTasks.add(
+                    Task(
+                        title = "✏️ Practice Questions: ${finalTestTask.subject} Active Recall",
+                        subject = finalTestTask.subject,
+                        chapter = finalTestTask.chapter.ifBlank { "Exam Prep" },
+                        taskType = "STUDY",
+                        dueDate = practiceCal.timeInMillis,
+                        estimatedMinutes = 60,
+                        workloadScore = 4,
+                        studentName = _userName.value
+                    )
+                )
+
+                // 3. Mock Test & Past Paper Simulation (final prep stage)
+                if (daysRemaining >= 2) {
+                    val mockDayOffset = daysRemaining - 1
+                    val mockCal = Calendar.getInstance().apply {
+                        add(Calendar.DATE, mockDayOffset)
+                        set(Calendar.HOUR_OF_DAY, 17)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    prepTasks.add(
+                        Task(
+                            title = "📝 Mock Test: ${finalTestTask.title} Past Paper Simulation",
+                            subject = finalTestTask.subject,
+                            chapter = finalTestTask.chapter.ifBlank { "Exam Prep" },
+                            taskType = "REVISION",
+                            dueDate = mockCal.timeInMillis,
+                            estimatedMinutes = 60,
+                            workloadScore = 5,
+                            studentName = _userName.value
+                        )
+                    )
+                }
+
+                for (pt in prepTasks) {
+                    repository.insertTask(pt)
+                }
+            } else {
+                repository.insertTask(task)
+            }
         }
     }
 
@@ -838,6 +1475,27 @@ class StudyViewModel(
             try {
                 val list = repository.generateAIStudyPlan(rawText, _userMood.value, _topStudyHours.value)
                 _proposedTasks.value = list
+                // Simultaneously insert scheduled blocks into database so they appear on Today's Schedule & Hourly Timeline
+                for (pt in list) {
+                    val cal = Calendar.getInstance()
+                    cal.add(Calendar.DATE, pt.daysFromNow)
+                    cal.set(Calendar.HOUR_OF_DAY, pt.hourOfDay)
+                    cal.set(Calendar.MINUTE, 0)
+                    cal.set(Calendar.SECOND, 0)
+                    cal.set(Calendar.MILLISECOND, 0)
+
+                    val newTask = Task(
+                        title = pt.title,
+                        subject = pt.subject,
+                        chapter = pt.chapter,
+                        taskType = pt.taskType,
+                        dueDate = cal.timeInMillis,
+                        estimatedMinutes = pt.estimatedMinutes,
+                        workloadScore = pt.workloadScore,
+                        studentName = _userName.value
+                    )
+                    registerAndScheduleTestIfNeeded(newTask)
+                }
             } catch (e: Exception) {
                 // Handled
             } finally {
@@ -870,7 +1528,7 @@ class StudyViewModel(
                     workloadScore = pt.workloadScore,
                     studentName = _userName.value
                 )
-                repository.insertTask(newTask)
+                registerAndScheduleTestIfNeeded(newTask)
             }
             _proposedTasks.value = null
         }
@@ -905,10 +1563,69 @@ class StudyViewModel(
 
 
 
+    fun loadCustomSubjects() {
+        val saved = sharedPrefs.getStringSet("custom_subjects_set", emptySet()) ?: emptySet()
+        _customSubjects.value = saved.toList().sorted()
+    }
+
+    fun addCustomSubject(subjectName: String) {
+        val clean = subjectName.trim()
+        if (clean.isBlank()) return
+        val current = _customSubjects.value.toMutableList()
+        if (!current.contains(clean)) {
+            current.add(clean)
+            _customSubjects.value = current
+            sharedPrefs.edit().putStringSet("custom_subjects_set", current.toSet()).apply()
+            
+            // Default target
+            if ((_subjectWeeklyTargets.value[clean] ?: 0) == 0) {
+                setSubjectWeeklyTarget(clean, 4)
+            }
+        }
+    }
+
+    fun logSubjectStudyTime(subject: String, minutes: Int) {
+        viewModelScope.launch {
+            val currentMap = _subjectStudyTimeLogs.value.toMutableMap()
+            val currentVal = currentMap[subject] ?: 0f
+            val updatedVal = currentVal + (minutes / 60f)
+            currentMap[subject] = updatedVal
+            _subjectStudyTimeLogs.value = currentMap
+            sharedPrefs.edit().putFloat("subject_logged_hours_$subject", updatedVal).apply()
+
+            // Insert completed task record for real-time propagation across timeline
+            repository.insertTask(
+                Task(
+                    title = "Study Session Log: $subject",
+                    subject = subject,
+                    chapter = "Logged Study Hours",
+                    taskType = "STUDY",
+                    dueDate = System.currentTimeMillis(),
+                    estimatedMinutes = minutes,
+                    isCompleted = true,
+                    workloadScore = 2,
+                    studentName = _userName.value
+                )
+            )
+        }
+    }
+
+    fun loadSubjectStudyTimeLogs() {
+        val map = mutableMapOf<String, Float>()
+        val defaultSubjects = listOf("Mathematics", "Physics", "Biology", "Chemistry", "English")
+        val allSubs = defaultSubjects + _customSubjects.value
+        allSubs.forEach { sub ->
+            val logged = sharedPrefs.getFloat("subject_logged_hours_$sub", 0f)
+            map[sub] = logged
+        }
+        _subjectStudyTimeLogs.value = map
+    }
+
     fun loadSubjectWeeklyTargets() {
         val map = mutableMapOf<String, Int>()
-        val subjects = listOf("Mathematics", "Physics", "Biology", "Chemistry", "English")
-        subjects.forEach { sub ->
+        val defaultSubjects = listOf("Mathematics", "Physics", "Biology", "Chemistry", "English")
+        val allSubs = (defaultSubjects + _customSubjects.value).distinct()
+        allSubs.forEach { sub ->
             val target = sharedPrefs.getInt("subject_weekly_target_$sub", 4) // default 4 hours
             map[sub] = target
         }
